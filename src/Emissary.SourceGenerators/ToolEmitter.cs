@@ -100,18 +100,15 @@ internal static class ToolEmitter
             $"    {parameter.DeclaredTypeFullName} __arg_{parameter.CSharpName} = " +
             $"input.TryGetProperty({Literal(parameter.JsonName)}, out global::System.Text.Json.JsonElement {element}) " +
             $"&& {element}.ValueKind != global::System.Text.Json.JsonValueKind.Null " +
-            $"? {Reader(parameter, element)} : {fallback};");
+            $"? {Reader(model, parameter, element)} : {fallback};");
     }
 
-    private static string Reader(ParameterModel parameter, string element) => parameter.Kind switch
+    private static string Reader(ToolModel model, ParameterModel parameter, string element) => parameter.Kind switch
     {
-        JsonKind.String => element + ".GetString()!",
-        JsonKind.Bool => element + ".GetBoolean()",
-        JsonKind.Int => element + ".GetInt32()",
-        JsonKind.Long => element + ".GetInt64()",
-        JsonKind.Double => element + ".GetDouble()",
         JsonKind.Enum => EnumParserName(parameter.EnumType!) + "(" + element + ".GetString()!)",
-        _ => ArrayReaderName(parameter.ElementKind) + "(" + element + ")",
+        JsonKind.Object => model.Pocos[parameter.PocoIndex].BinderName + "(" + element + ")",
+        JsonKind.Array => ArrayReaderName(parameter.ElementKind) + "(" + element + ")",
+        _ => PrimitiveReader(parameter.Kind, element),
     };
 
     private static string PrimitiveReader(JsonKind kind, string element) => kind switch
@@ -137,17 +134,66 @@ internal static class ToolEmitter
         var emittedEnums = new HashSet<string>();
         var emittedArrayKinds = new HashSet<JsonKind>();
 
-        foreach (var parameter in model.Parameters)
+        foreach (var binding in AllBindings(model))
         {
-            if (parameter.Kind == JsonKind.Enum && emittedEnums.Add(EnumParserName(parameter.EnumType!)))
+            if (binding.Kind == JsonKind.Enum && emittedEnums.Add(EnumParserName(binding.EnumType!)))
             {
-                EmitEnumParser(builder, parameter.EnumType!);
+                EmitEnumParser(builder, binding.EnumType!);
             }
-            else if (parameter.Kind == JsonKind.Array && emittedArrayKinds.Add(parameter.ElementKind))
+            else if (binding.Kind == JsonKind.Array && emittedArrayKinds.Add(binding.ElementKind))
             {
-                EmitArrayReader(builder, parameter.ElementKind);
+                EmitArrayReader(builder, binding.ElementKind);
             }
         }
+
+        foreach (var poco in model.Pocos)
+        {
+            EmitPocoBinder(builder, model, poco);
+        }
+    }
+
+    private static IEnumerable<ParameterModel> AllBindings(ToolModel model)
+    {
+        foreach (var parameter in model.Parameters)
+        {
+            if (!parameter.IsCancellationToken)
+            {
+                yield return parameter;
+            }
+        }
+
+        foreach (var poco in model.Pocos)
+        {
+            foreach (var member in poco.Members)
+            {
+                yield return member;
+            }
+        }
+    }
+
+    private static void EmitPocoBinder(StringBuilder builder, ToolModel model, PocoModel poco)
+    {
+        builder.AppendLine($"    static {poco.FullName} {poco.BinderName}(global::System.Text.Json.JsonElement element)");
+        builder.AppendLine("    {");
+
+        foreach (var member in poco.Members)
+        {
+            string element = "__e_" + member.CSharpName;
+            string fallback = member.IsOptional
+                ? member.DefaultLiteral
+                : $"throw new global::Emissary.ToolArgumentException({Literal($"Object '{TrimGlobal(poco.FullName)}' is missing required member '{member.JsonName}'.")})";
+
+            builder.AppendLine(
+                $"        {member.DeclaredTypeFullName} __v_{member.CSharpName} = " +
+                $"element.TryGetProperty({Literal(member.JsonName)}, out global::System.Text.Json.JsonElement {element}) " +
+                $"&& {element}.ValueKind != global::System.Text.Json.JsonValueKind.Null " +
+                $"? {Reader(model, member, element)} : {fallback};");
+        }
+
+        builder.AppendLine(poco.UsesConstructor
+            ? $"        return new {poco.FullName}({string.Join(", ", poco.Members.Select(m => "__v_" + m.CSharpName))});"
+            : $"        return new {poco.FullName} {{ {string.Join(", ", poco.Members.Select(m => m.CSharpName + " = __v_" + m.CSharpName))} }};");
+        builder.AppendLine("    }");
     }
 
     private static void EmitEnumParser(StringBuilder builder, INamedTypeSymbol enumType)
@@ -182,58 +228,70 @@ internal static class ToolEmitter
     internal static string BuildSchema(ToolModel model)
     {
         var builder = new StringBuilder(256);
-        builder.Append("{\"type\":\"object\",\"properties\":{");
+        builder.Append('{');
+        AppendObjectBody(builder, model, model.Parameters.Where(p => !p.IsCancellationToken));
+        builder.Append('}');
+        return builder.ToString();
+    }
+
+    private static void AppendObjectBody(StringBuilder builder, ToolModel model, IEnumerable<ParameterModel> members)
+    {
+        builder.Append("\"type\":\"object\",\"properties\":{");
 
         bool first = true;
-        foreach (var parameter in model.Parameters)
+        var required = new List<string>();
+        foreach (var member in members)
         {
-            if (parameter.IsCancellationToken)
-            {
-                continue;
-            }
-
             if (!first)
             {
                 builder.Append(',');
             }
 
             first = false;
-            builder.Append('"').Append(parameter.JsonName).Append("\":");
-            AppendTypeSchema(builder, parameter);
+            builder.Append('"').Append(member.JsonName).Append("\":");
+            AppendTypeSchema(builder, model, member);
+
+            if (!member.IsOptional)
+            {
+                required.Add("\"" + member.JsonName + "\"");
+            }
         }
 
         builder.Append('}');
-
-        var required = model.Parameters
-            .Where(p => !p.IsCancellationToken && !p.IsOptional)
-            .Select(p => "\"" + p.JsonName + "\"")
-            .ToList();
         if (required.Count > 0)
         {
             builder.Append(",\"required\":[").Append(string.Join(",", required)).Append(']');
         }
-
-        builder.Append('}');
-        return builder.ToString();
     }
 
-    private static void AppendTypeSchema(StringBuilder builder, ParameterModel parameter)
+    private static void AppendTypeSchema(StringBuilder builder, ToolModel model, ParameterModel parameter)
     {
+        builder.Append('{');
         switch (parameter.Kind)
         {
             case JsonKind.Enum:
-                builder.Append("{\"type\":\"string\",\"enum\":[")
+                builder.Append("\"type\":\"string\",\"enum\":[")
                     .Append(string.Join(",", EnumMemberNames(parameter.EnumType!).Select(n => "\"" + n + "\"")))
-                    .Append("]}");
+                    .Append(']');
                 break;
             case JsonKind.Array:
-                builder.Append("{\"type\":\"array\",\"items\":{\"type\":\"")
-                    .Append(SchemaTypeName(parameter.ElementKind)).Append("\"}}");
+                builder.Append("\"type\":\"array\",\"items\":{\"type\":\"")
+                    .Append(SchemaTypeName(parameter.ElementKind)).Append("\"}");
+                break;
+            case JsonKind.Object:
+                AppendObjectBody(builder, model, model.Pocos[parameter.PocoIndex].Members);
                 break;
             default:
-                builder.Append("{\"type\":\"").Append(SchemaTypeName(parameter.Kind)).Append("\"}");
+                builder.Append("\"type\":\"").Append(SchemaTypeName(parameter.Kind)).Append('"');
                 break;
         }
+
+        if (parameter.Description is not null)
+        {
+            builder.Append(",\"description\":\"").Append(DocComments.JsonEscape(parameter.Description)).Append('"');
+        }
+
+        builder.Append('}');
     }
 
     private static string SchemaTypeName(JsonKind kind) => kind switch
@@ -261,6 +319,10 @@ internal static class ToolEmitter
 
     private static string ArrayReaderName(JsonKind elementKind) =>
         "__EmissaryReadArray_" + elementKind;
+
+    // FullName always comes from SymbolDisplayFormat.FullyQualifiedFormat, so the
+    // "global::" prefix is guaranteed.
+    private static string TrimGlobal(string fullName) => fullName.Substring(8);
 
     private static string Literal(string value) => SymbolDisplay.FormatLiteral(value, quote: true);
 }

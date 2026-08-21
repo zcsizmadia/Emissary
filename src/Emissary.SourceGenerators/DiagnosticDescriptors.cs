@@ -17,7 +17,7 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor UnsupportedParameterType = new(
         id: "EMS002",
         title: "Unsupported tool parameter type",
-        messageFormat: "Parameter '{0}' of tool method '{1}' has unsupported type '{2}'. Supported: string, bool, int, long, double, enums, arrays of those, and CancellationToken.",
+        messageFormat: "Parameter '{0}' of tool method '{1}' has unsupported type '{2}'. Supported: string, bool, int, long, double, enums, arrays of those, records/objects composed of those, and CancellationToken.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);

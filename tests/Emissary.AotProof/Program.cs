@@ -7,6 +7,7 @@ int failures = 0;
 await Check(AotTools.EchoTool, """{"text":"aot"}""", "aot");
 await Check(AotTools.AddTool, """{"left":5}""", "15");
 await Check(AotTools.DescribeTool, """{"color":"Green","tags":["fast","native"]}""", "Green:fast+native");
+await Check(AotTools.ShipTool, """{"order":{"id":"A1","address":{"city":"Oslo","zip":"0150"}}}""", "A1->Oslo/0150 x1");
 
 if (failures > 0)
 {
@@ -54,5 +55,15 @@ namespace Emissary.AotProof
             await Task.Delay(1, cancellationToken);
             return color + ":" + string.Join("+", tags);
         }
+
+        /// <summary>Ships an order.</summary>
+        /// <param name="order">The order to ship.</param>
+        [ClaudeTool]
+        public static string Ship(Order order) =>
+            $"{order.Id}->{order.Address.City}/{order.Address.Zip} x{order.Quantity}";
     }
+
+    internal sealed record Address(string City, string Zip);
+
+    internal sealed record Order(string Id, Address Address, int Quantity = 1);
 }

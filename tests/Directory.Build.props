@@ -4,8 +4,12 @@
 
   <PropertyGroup>
     <IsPackable>false</IsPackable>
-    <!-- CA1707: test method names use snake_case by convention. -->
-    <NoWarn>$(NoWarn);CA1707</NoWarn>
+    <!-- XML-doc-sourced tool descriptions require doc comments to be parsed (the generator
+         reads them via GetDocumentationCommentXml, which needs DocumentationMode != None). -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- CA1707: test method names use snake_case by convention.
+         CS1591: test members do not need XML docs. -->
+    <NoWarn>$(NoWarn);CA1707;CS1591</NoWarn>
   </PropertyGroup>
 
 </Project>

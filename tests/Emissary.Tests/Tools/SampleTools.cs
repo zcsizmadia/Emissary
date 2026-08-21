@@ -82,4 +82,27 @@ public static partial class SampleTools
 
     [ClaudeTool(Description = "Round-trips a temperature unit.")]
     public static TemperatureUnit RoundTripUnit(TemperatureUnit unit) => unit;
+
+    /// <summary>Places an order.</summary>
+    /// <param name="order">The order to place.</param>
+    [ClaudeTool]
+    public static string PlaceOrder(Order order) =>
+        $"{order.Id}:{order.Address.City}/{order.Address.Zip}:{order.Quantity}";
+
+    [ClaudeTool(Description = "Applies user preferences.")]
+    public static string ApplyPreferences(Preferences preferences) =>
+        $"{preferences.Theme}:{preferences.FontSize}:{preferences.Unit}";
+}
+
+public sealed record Address(string City, string Zip);
+
+public sealed record Order(string Id, Address Address, int Quantity = 1);
+
+public sealed class Preferences
+{
+    public required string Theme { get; set; }
+
+    public int FontSize { get; set; }
+
+    public TemperatureUnit Unit { get; init; }
 }
