@@ -20,6 +20,23 @@ public sealed class ClaudeAgent
     {
     }
 
+    /// <summary>Creates an agent talking to the Claude API, recording every exchange.</summary>
+    /// <param name="options">The agent configuration.</param>
+    /// <param name="recorder">Receives every completed model exchange.</param>
+    public ClaudeAgent(AgentOptions options, TrajectoryRecorder recorder)
+        : this(options, new RecordingTransport(new AnthropicTransport(options?.ApiKey), recorder))
+    {
+    }
+
+    /// <summary>Creates an agent that replays a recorded trajectory instead of calling the API.</summary>
+    /// <param name="options">The agent configuration; must match the recorded run.</param>
+    /// <param name="trajectory">The recording to replay.</param>
+    /// <exception cref="TrajectoryDivergenceException">Thrown during a run if it diverges from the recording.</exception>
+    public ClaudeAgent(AgentOptions options, Trajectory trajectory)
+        : this(options, new ReplayTransport(trajectory))
+    {
+    }
+
     internal ClaudeAgent(AgentOptions options, IModelTransport transport)
     {
         ArgumentNullException.ThrowIfNull(options);

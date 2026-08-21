@@ -5,6 +5,16 @@
       "file": "src/Emissary/ClaudeAgent.cs",
       "lineContains": "}",
       "reason": "Async-iterator epilogue (dispose-mode/fault resume) branch the compiler attaches to the StreamAsync closing brace. No source-level code path reaches the uncovered outcome; verified with dedicated early-abandon tests at every yield site. Matches brace lines only, in this file only."
+    },
+    {
+      "file": "src/Emissary/Transport/RecordingTransport.cs",
+      "lineContains": "}",
+      "reason": "Same async-iterator epilogue artifact as ClaudeAgent.StreamAsync; verified with an early-abandon test."
+    },
+    {
+      "file": "src/Emissary/Transport/ReplayTransport.cs",
+      "lineContains": "}",
+      "reason": "Same async-iterator epilogue artifact as ClaudeAgent.StreamAsync; verified with an early-abandon test."
     }
   ]
 }

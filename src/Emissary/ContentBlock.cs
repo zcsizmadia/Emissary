@@ -1,8 +1,15 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Emissary;
 
 /// <summary>One block of message content — text, thinking, a tool call, or a tool result.</summary>
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
+[JsonDerivedType(typeof(TextBlock), "text")]
+[JsonDerivedType(typeof(ThinkingBlock), "thinking")]
+[JsonDerivedType(typeof(RedactedThinkingBlock), "redacted_thinking")]
+[JsonDerivedType(typeof(ToolUseBlock), "tool_use")]
+[JsonDerivedType(typeof(ToolResultBlock), "tool_result")]
 public abstract record ContentBlock;
 
 /// <summary>Plain text content.</summary>

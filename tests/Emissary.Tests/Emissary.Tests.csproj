@@ -9,6 +9,11 @@
     <!-- Runs the generator on this project (integration tests) AND references its assembly
          (driver-based unit tests). -->
     <ProjectReference Include="..\..\src\Emissary.SourceGenerators\Emissary.SourceGenerators.csproj" OutputItemType="Analyzer" />
+    <ProjectReference Include="..\..\src\Emissary.Testing\Emissary.Testing.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Trajectories\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

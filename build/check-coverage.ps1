@@ -24,6 +24,8 @@ $violations = @()
 $tolerated = 0
 foreach ($package in $cobertura.coverage.packages.package | Where-Object { $_.name -like 'Emissary*' -and $_.name -notlike '*.Tests' }) {
     foreach ($class in $package.classes.class) {
+        # Generated code (ADR 0003 exclusion 1) is outside the gate.
+        if ($class.filename -like '*.g.cs') { continue }
         $partial = @($class.lines.line | Where-Object { $_.'condition-coverage' -and $_.'condition-coverage' -notlike '100%*' })
         foreach ($branch in $partial) {
             $sourceLine = (Get-Content $class.filename)[[int]$branch.number - 1].Trim()
