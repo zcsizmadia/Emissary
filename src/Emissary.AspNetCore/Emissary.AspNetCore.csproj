@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Emissary.AspNetCore</RootNamespace>
+    <Description>ASP.NET Core hosting for Emissary agents: SSE streaming endpoints and human-in-the-loop approval webhooks.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Emissary\Emissary.csproj" />
+  </ItemGroup>
+
+</Project>

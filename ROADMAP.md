@@ -110,6 +110,11 @@ privileged tool, captured in a replayable trajectory.
 `app.MapEmissaryAgent(...)` SSE endpoint; human-in-the-loop gates including durable multi-day pause
 (state-store abstraction + SQLite provider, resume via webhook); agent-as-MCP-server.
 
+*Status (6a): landed — Emissary.AspNetCore (MapEmissaryAgent SSE + MapEmissaryApprovals webhook),
+durable suspend/resume in core (AgentOptions.ApprovalRequired → SuspendedRun with serialized guard
+state; ClaudeAgent.ResumeAsync), IAgentStateStore + in-memory provider, sample 07. Remaining (6b):
+agent-as-MCP-server + sample 08, SQLite store provider, AOT container image for the exit criterion.*
+
 **Exit:** one sample deploys as an AOT container: HTTP in, SSE out, approval webhook resumes a run.
 
 ## Phase 7 — v1.0 launch

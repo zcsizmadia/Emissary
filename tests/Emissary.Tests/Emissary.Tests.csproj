@@ -10,6 +10,7 @@
          (driver-based unit tests). -->
     <ProjectReference Include="..\..\src\Emissary.SourceGenerators\Emissary.SourceGenerators.csproj" OutputItemType="Analyzer" />
     <ProjectReference Include="..\..\src\Emissary.Testing\Emissary.Testing.csproj" />
+    <ProjectReference Include="..\..\src\Emissary.AspNetCore\Emissary.AspNetCore.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -17,6 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />

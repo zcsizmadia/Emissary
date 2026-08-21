@@ -3,6 +3,7 @@
     <Project Path="src/Emissary/Emissary.csproj" />
     <Project Path="src/Emissary.SourceGenerators/Emissary.SourceGenerators.csproj" />
     <Project Path="src/Emissary.Testing/Emissary.Testing.csproj" />
+    <Project Path="src/Emissary.AspNetCore/Emissary.AspNetCore.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Emissary.Tests/Emissary.Tests.csproj" />
@@ -14,5 +15,6 @@
     <Project Path="samples/03-TypedOutputs/TypedOutputs.csproj" />
     <Project Path="samples/04-RecordReplay/RecordReplay.csproj" />
     <Project Path="samples/06-ZeroTrustAgent/ZeroTrustAgent.csproj" />
+    <Project Path="samples/07-WebApi/WebApi.csproj" />
   </Folder>
 </Solution>

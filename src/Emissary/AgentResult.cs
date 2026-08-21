@@ -17,6 +17,9 @@ public enum AgentStopReason
 
     /// <summary>The run hit <see cref="AgentOptions.TokenBudget"/>.</summary>
     BudgetExceeded,
+
+    /// <summary>The run paused at a human-in-the-loop gate; see <see cref="AgentResult.Suspension"/>.</summary>
+    AwaitingApproval,
 }
 
 /// <summary>Token usage accumulated across all turns of a run.</summary>
@@ -73,6 +76,12 @@ public sealed class AgentResult
     /// effects awaiting approval. Empty for live runs.
     /// </summary>
     public IReadOnlyList<PlannedEffect> PlannedEffects { get; init; } = [];
+
+    /// <summary>
+    /// The durable suspension state when <see cref="StopReason"/> is
+    /// <see cref="AgentStopReason.AwaitingApproval"/>; otherwise <see langword="null"/>.
+    /// </summary>
+    public SuspendedRun? Suspension { get; init; }
 
     /// <summary>The text of the last assistant message, or "" if there is none.</summary>
     public string FinalText =>

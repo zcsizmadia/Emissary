@@ -27,6 +27,13 @@ public sealed record AgentToolResultEvent(string Id, string Name, string Result,
 /// <param name="Assistant">The assistant message for the turn.</param>
 public sealed record AgentTurnEvent(Message Assistant) : AgentEvent;
 
+/// <summary>
+/// The run paused at a human-in-the-loop gate. Persist the suspension and resume later with
+/// <see cref="ClaudeAgent.ResumeAsync"/>. Followed by the final <see cref="AgentCompletedEvent"/>.
+/// </summary>
+/// <param name="Suspension">The serializable suspension state.</param>
+public sealed record AgentSuspendedEvent(SuspendedRun Suspension) : AgentEvent;
+
 /// <summary>The run ended. Always the final event of a stream.</summary>
 /// <param name="Result">The run outcome.</param>
 public sealed record AgentCompletedEvent(AgentResult Result) : AgentEvent;
