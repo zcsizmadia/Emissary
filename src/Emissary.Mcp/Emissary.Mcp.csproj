@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Emissary.Mcp</RootNamespace>
+    <Description>Expose Emissary agents and their tools as a Model Context Protocol (MCP) stdio server — callable from Claude Code, Claude Desktop, and any MCP host.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Emissary\Emissary.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Emissary.Tests" />
+  </ItemGroup>
+
+</Project>
