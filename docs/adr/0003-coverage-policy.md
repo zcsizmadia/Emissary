@@ -12,7 +12,11 @@ Permitted exclusions, and nothing else:
 1. Compiler-generated code without sequence points.
 2. `[ExcludeFromCodeCoverage]` **with a justification comment on the attribute** — reviewed like
    code. Legitimate uses: defensive throws that are unreachable by construction, platform-specific
-   branches CI cannot execute.
+   branches CI cannot execute, thin network-I/O shells exercised by the live smoke suite.
+3. Compiler-artifact **branches** baselined in `build/coverage-baseline.json` — each entry names
+   the exact source line and the reason, and is reviewed like code. Only branches proven
+   unreachable from source qualify (e.g. async-iterator dispose-mode resume checks); line
+   coverage is never baselined.
 
 Coverage proves code ran; it does not prove tests assert anything. Mutation testing is the intended
 quality guard, but Stryker.NET cannot run Microsoft.Testing.Platform (TUnit) tests

@@ -1,0 +1,10 @@
+{
+  "comment": "Known compiler-artifact branches the gate tolerates. Every entry needs a reason and is reviewed like code. Line coverage is never baselined - only branches proven unreachable from source.",
+  "allowedPartialBranches": [
+    {
+      "file": "src/Emissary/ClaudeAgent.cs",
+      "lineContains": "}",
+      "reason": "Async-iterator epilogue (dispose-mode/fault resume) branch the compiler attaches to the StreamAsync closing brace. No source-level code path reaches the uncovered outcome; verified with dedicated early-abandon tests at every yield site. Matches brace lines only, in this file only."
+    }
+  ]
+}
