@@ -57,9 +57,15 @@ jobs:
           --source https://api.nuget.org/v3/index.json
           --skip-duplicate
 
-      - name: Create GitHub release
+      - name: Create or update GitHub release
+        # Works for both flows: a CLI-pushed tag (create the release) and a release drafted in
+        # the GitHub UI with "create tag on publish" (attach packages to the existing release).
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >
-          gh release create "$GITHUB_REF_NAME" artifacts/packages/*.nupkg
-          --title "$GITHUB_REF_NAME" --generate-notes
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" artifacts/packages/*.nupkg --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" artifacts/packages/*.nupkg \
+              --title "$GITHUB_REF_NAME" --generate-notes
+          fi
