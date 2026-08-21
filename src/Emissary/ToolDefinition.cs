@@ -17,6 +17,7 @@ public sealed class ToolDefinition
     /// <param name="requiredPolicy">Policy an <see cref="IToolAuthorizer"/> must grant, or <see langword="null"/>.</param>
     /// <param name="untrusted">Whether the tool's output taints the run (see <see cref="ClaudeToolAttribute.Untrusted"/>).</param>
     /// <param name="privileged">Whether the tool is blocked in tainted runs (see <see cref="ClaudeToolAttribute.Privileged"/>).</param>
+    /// <param name="compensation">Handler that undoes this tool's effect given the original input, or <see langword="null"/>.</param>
     /// <exception cref="ArgumentNullException">A required argument is <see langword="null"/>.</exception>
     public ToolDefinition(
         string name,
@@ -25,7 +26,8 @@ public sealed class ToolDefinition
         Func<JsonElement, CancellationToken, ValueTask<string>> handler,
         string? requiredPolicy = null,
         bool untrusted = false,
-        bool privileged = false)
+        bool privileged = false,
+        Func<JsonElement, CancellationToken, ValueTask<string>>? compensation = null)
     {
         ArgumentNullException.ThrowIfNull(name);
         ArgumentNullException.ThrowIfNull(description);
@@ -39,6 +41,7 @@ public sealed class ToolDefinition
         RequiredPolicy = requiredPolicy;
         Untrusted = untrusted;
         Privileged = privileged;
+        Compensation = compensation;
     }
 
     /// <summary>The wire name of the tool.</summary>
@@ -61,6 +64,9 @@ public sealed class ToolDefinition
 
     /// <summary>Whether the tool is blocked once the run is tainted.</summary>
     public bool Privileged { get; }
+
+    /// <summary>Undoes this tool's effect given the original input, or <see langword="null"/>.</summary>
+    public Func<JsonElement, CancellationToken, ValueTask<string>>? Compensation { get; }
 
     /// <summary>Invokes the tool with the given tool-use input.</summary>
     /// <param name="input">The tool-use input object.</param>

@@ -110,6 +110,7 @@ public sealed class ClaudeAgent
         var usage = AgentUsage.Zero;
         var stopReason = AgentStopReason.TurnLimit;
         var guard = new ToolCallGuard(_options.Rules);
+        var plannedEffects = new List<PlannedEffect>();
         for (int turn = 0; turn < _options.MaxTurns; turn++)
         {
             ModelResponse? response = null;
@@ -165,7 +166,7 @@ public sealed class ClaudeAgent
             if (response.StopReason == "tool_use")
             {
                 var toolUses = response.Content.OfType<ToolUseBlock>().ToArray();
-                var results = await ExecuteToolsAsync(toolUses, guard, cancellationToken).ConfigureAwait(false);
+                var results = await ExecuteToolsAsync(toolUses, guard, plannedEffects, cancellationToken).ConfigureAwait(false);
                 for (int i = 0; i < results.Length; i++)
                 {
                     yield return new AgentToolResultEvent(
@@ -196,7 +197,65 @@ public sealed class ClaudeAgent
             StopReason = stopReason,
             Usage = usage,
             Tainted = guard.Tainted,
+            PlannedEffects = plannedEffects,
         });
+    }
+
+    /// <summary>
+    /// Undoes the effects of a completed run (saga compensation): every successfully executed
+    /// tool with a <see cref="ToolDefinition.Compensation"/> handler is compensated with its
+    /// original input, in reverse call order. Shadow-planned effects were never executed and are
+    /// skipped.
+    /// </summary>
+    /// <param name="result">The run to unwind.</param>
+    /// <param name="cancellationToken">Cancels the compensation pass.</param>
+    public async Task<IReadOnlyList<CompensationResult>> CompensateAsync(
+        AgentResult result,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+
+        var shadowed = result.PlannedEffects.Select(e => e.ToolUseId).ToHashSet(StringComparer.Ordinal);
+        var succeeded = result.Conversation.Messages
+            .SelectMany(m => m.Content)
+            .OfType<ToolResultBlock>()
+            .Where(r => !r.IsError)
+            .Select(r => r.ToolUseId)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var compensable = new List<(ToolUseBlock Use, ToolDefinition Tool)>();
+        foreach (var toolUse in result.Conversation.Messages
+            .Where(m => m.Role == MessageRole.Assistant)
+            .SelectMany(m => m.Content)
+            .OfType<ToolUseBlock>())
+        {
+            if (succeeded.Contains(toolUse.Id)
+                && !shadowed.Contains(toolUse.Id)
+                && _options.Tools.FirstOrDefault(t => t.Name == toolUse.Name) is { Compensation: not null } tool)
+            {
+                compensable.Add((toolUse, tool));
+            }
+        }
+
+        var report = new List<CompensationResult>(compensable.Count);
+        for (int i = compensable.Count - 1; i >= 0; i--)
+        {
+            var (use, tool) = compensable[i];
+            using var activity = EmissaryDiagnostics.Source.StartActivity($"compensate_tool {use.Name}");
+            EmissaryDiagnostics.Tag(activity, "gen_ai.tool.name", use.Name);
+            try
+            {
+                string output = await tool.Compensation!(use.Input, cancellationToken).ConfigureAwait(false);
+                report.Add(new CompensationResult(use.Name, use.Id, Success: true, output));
+            }
+            catch (ToolArgumentException exception)
+            {
+                EmissaryDiagnostics.Fail(activity, exception.Message);
+                report.Add(new CompensationResult(use.Name, use.Id, Success: false, exception.Message));
+            }
+        }
+
+        return report;
     }
 
     private void RecordUsage(ModelResponse response)
@@ -222,6 +281,7 @@ public sealed class ClaudeAgent
     private async Task<ToolResultBlock[]> ExecuteToolsAsync(
         ToolUseBlock[] toolUses,
         ToolCallGuard guard,
+        List<PlannedEffect> plannedEffects,
         CancellationToken cancellationToken)
     {
         // Guard checks run sequentially in tool-use order (state frozen for the batch);
@@ -232,7 +292,15 @@ public sealed class ClaudeAgent
         {
             tools[i] = Array.Find(_activeTools, t => t.Name == toolUses[i].Name);
             string? violation = tools[i] is { } tool ? guard.Check(tool) : null;
-            tasks[i] = ExecuteToolAsync(tools[i], violation, toolUses[i], cancellationToken);
+            bool shadow = violation is null
+                && tools[i] is { Privileged: true }
+                && _options.Mode == ExecutionMode.Shadow;
+            if (shadow)
+            {
+                plannedEffects.Add(new PlannedEffect(toolUses[i].Name, toolUses[i].Id, toolUses[i].Input));
+            }
+
+            tasks[i] = ExecuteToolAsync(tools[i], violation, shadow, toolUses[i], cancellationToken);
         }
 
         var results = await Task.WhenAll(tasks).ConfigureAwait(false);
@@ -250,6 +318,7 @@ public sealed class ClaudeAgent
     private static async Task<ToolResultBlock> ExecuteToolAsync(
         ToolDefinition? tool,
         string? violation,
+        bool shadow,
         ToolUseBlock toolUse,
         CancellationToken cancellationToken)
     {
@@ -268,6 +337,15 @@ public sealed class ClaudeAgent
         {
             EmissaryDiagnostics.Fail(activity, violation);
             return new ToolResultBlock(toolUse.Id, violation, IsError: true);
+        }
+
+        if (shadow)
+        {
+            EmissaryDiagnostics.Tag(activity, "emissary.shadow", true);
+            return new ToolResultBlock(
+                toolUse.Id,
+                $"[shadow] Call to '{toolUse.Name}' was recorded as a planned effect and not executed.",
+                IsError: false);
         }
 
         try

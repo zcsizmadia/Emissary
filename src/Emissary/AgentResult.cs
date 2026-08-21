@@ -68,6 +68,12 @@ public sealed class AgentResult
     /// </summary>
     public bool Tainted { get; init; }
 
+    /// <summary>
+    /// The privileged calls intercepted in <see cref="ExecutionMode.Shadow"/> runs — the plan of
+    /// effects awaiting approval. Empty for live runs.
+    /// </summary>
+    public IReadOnlyList<PlannedEffect> PlannedEffects { get; init; } = [];
+
     /// <summary>The text of the last assistant message, or "" if there is none.</summary>
     public string FinalText =>
         Conversation.Messages.LastOrDefault(m => m.Role == MessageRole.Assistant)?.Text ?? "";

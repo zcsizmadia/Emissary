@@ -89,6 +89,23 @@ public static partial class SampleTools
     [ClaudeTool(Description = "Sends a payment.", Privileged = true)]
     public static string SendPayment(double amount) => $"sent {amount}";
 
+    /// <summary>Compensation log for booking tests, keyed by room.</summary>
+    public static List<string> BookingLog { get; } = [];
+
+    [ClaudeTool(Description = "Books a room.", CompensatedBy = nameof(CancelRoom))]
+    public static string BookRoom(string room)
+    {
+        BookingLog.Add($"booked {room}");
+        return $"booked {room}";
+    }
+
+    [ClaudeTool(Description = "Cancels a room booking.")]
+    public static string CancelRoom(string room)
+    {
+        BookingLog.Add($"cancelled {room}");
+        return $"cancelled {room}";
+    }
+
     /// <summary>Deletes stored data.</summary>
     /// <param name="id">The record id.</param>
     [AuthorizeTool("admin")]

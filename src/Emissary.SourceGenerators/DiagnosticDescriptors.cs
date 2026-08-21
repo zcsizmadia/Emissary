@@ -54,6 +54,14 @@ internal static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    public static readonly DiagnosticDescriptor CompensatorNotFound = new(
+        id: "EMS009",
+        title: "Compensator method not found",
+        messageFormat: "CompensatedBy on tool method '{0}' references '{1}', which is not a [ClaudeTool] method on the same type",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     public static readonly DiagnosticDescriptor TypeNotSchemaRepresentable = new(
         id: "EMS008",
         title: "Type is not schema-representable",

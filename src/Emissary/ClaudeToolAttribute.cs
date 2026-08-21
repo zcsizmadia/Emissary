@@ -35,4 +35,11 @@ public sealed class ClaudeToolAttribute : Attribute
     /// the conversation.
     /// </summary>
     public bool Privileged { get; set; }
+
+    /// <summary>
+    /// Names another <c>[ClaudeTool]</c> method on the same type that undoes this tool's effect
+    /// (saga compensation), e.g. <c>CompensatedBy = nameof(CancelReservation)</c>. The compensator
+    /// is invoked with this tool's original input by <see cref="ClaudeAgent.CompensateAsync"/>.
+    /// </summary>
+    public string? CompensatedBy { get; set; }
 }

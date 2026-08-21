@@ -92,6 +92,9 @@ internal sealed class ToolAnalyzer
                 case "Privileged":
                     _model.Privileged = Equals(argument.Value.Value, true);
                     break;
+                case "CompensatedBy":
+                    _model.CompensatedBy = argument.Value.Value as string;
+                    break;
                 default:
                     description = argument.Value.Value as string;
                     break;
@@ -104,6 +107,12 @@ internal sealed class ToolAnalyzer
             {
                 _model.RequiredPolicy = attribute.ConstructorArguments[0].Value as string;
             }
+        }
+
+        if (_model.CompensatedBy is { } compensator && !IsClaudeToolMethod(compensator))
+        {
+            Report(DiagnosticDescriptors.CompensatorNotFound, _method.Name, compensator);
+            _model.CompensatedBy = null;
         }
 
         _model.ToolName = string.IsNullOrWhiteSpace(name) ? NameHelpers.ToSnakeCase(_method.Name) : name!;
@@ -121,6 +130,12 @@ internal sealed class ToolAnalyzer
             Report(DiagnosticDescriptors.MissingDescription, _method.Name);
         }
     }
+
+    private bool IsClaudeToolMethod(string methodName) =>
+        _method.ContainingType.GetMembers(methodName)
+            .OfType<IMethodSymbol>()
+            .Any(m => m.GetAttributes().Any(a =>
+                a.AttributeClass?.ToDisplayString() == "Emissary.ClaudeToolAttribute"));
 
     private void AnalyzeParameters(Dictionary<string, string> parameterDocs)
     {

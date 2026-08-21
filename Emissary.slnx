@@ -13,5 +13,6 @@
     <Project Path="samples/02-StreamingChat/StreamingChat.csproj" />
     <Project Path="samples/03-TypedOutputs/TypedOutputs.csproj" />
     <Project Path="samples/04-RecordReplay/RecordReplay.csproj" />
+    <Project Path="samples/06-ZeroTrustAgent/ZeroTrustAgent.csproj" />
   </Folder>
 </Solution>
