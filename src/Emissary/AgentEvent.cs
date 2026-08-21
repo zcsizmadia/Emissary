@@ -1,0 +1,32 @@
+namespace Emissary;
+
+/// <summary>One event in a streaming agent run.</summary>
+public abstract record AgentEvent;
+
+/// <summary>A fragment of assistant text as it streams.</summary>
+/// <param name="Delta">The text fragment.</param>
+public sealed record AgentTextEvent(string Delta) : AgentEvent;
+
+/// <summary>A fragment of the model's thinking as it streams.</summary>
+/// <param name="Delta">The thinking fragment.</param>
+public sealed record AgentThinkingEvent(string Delta) : AgentEvent;
+
+/// <summary>The model started calling a tool.</summary>
+/// <param name="Id">The tool-use id.</param>
+/// <param name="Name">The wire name of the tool.</param>
+public sealed record AgentToolCallEvent(string Id, string Name) : AgentEvent;
+
+/// <summary>A tool finished executing.</summary>
+/// <param name="Id">The tool-use id.</param>
+/// <param name="Name">The wire name of the tool.</param>
+/// <param name="Result">The result content sent back to the model.</param>
+/// <param name="IsError">Whether the tool failed.</param>
+public sealed record AgentToolResultEvent(string Id, string Name, string Result, bool IsError) : AgentEvent;
+
+/// <summary>One model turn completed and was appended to the conversation.</summary>
+/// <param name="Assistant">The assistant message for the turn.</param>
+public sealed record AgentTurnEvent(Message Assistant) : AgentEvent;
+
+/// <summary>The run ended. Always the final event of a stream.</summary>
+/// <param name="Result">The run outcome.</param>
+public sealed record AgentCompletedEvent(AgentResult Result) : AgentEvent;
