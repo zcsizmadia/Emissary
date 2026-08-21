@@ -19,6 +19,7 @@ internal sealed record ModelRequest(
     int MaxTokens,
     ThinkingMode Thinking,
     EffortLevel? Effort,
+    string? OutputSchemaJson,
     IReadOnlyList<Message> Messages,
     IReadOnlyList<ToolDefinition> Tools);
 

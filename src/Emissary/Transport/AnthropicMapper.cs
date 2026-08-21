@@ -18,10 +18,38 @@ internal static class AnthropicMapper
             MaxTokens = request.MaxTokens,
             System = request.System is { } system ? (MessageCreateParamsSystem)system : null,
             Thinking = thinking,
-            OutputConfig = request.Effort is { } effort ? new OutputConfig { Effort = ToEffort(effort) } : null,
+            OutputConfig = BuildOutputConfig(request),
             Tools = request.Tools.Count > 0 ? request.Tools.Select(t => (ToolUnion)ToTool(t)).ToList() : null,
             Messages = request.Messages.Select(ToMessageParam).ToList(),
         };
+    }
+
+    private static OutputConfig? BuildOutputConfig(ModelRequest request)
+    {
+        if (request.Effort is null && request.OutputSchemaJson is null)
+        {
+            return null;
+        }
+
+        return new OutputConfig
+        {
+            Effort = request.Effort is { } effort ? ToEffort(effort) : default,
+            Format = request.OutputSchemaJson is { } schema
+                ? new JsonOutputFormat { Schema = ParseSchemaObject(schema) }
+                : default,
+        };
+    }
+
+    internal static Dictionary<string, JsonElement> ParseSchemaObject(string schemaJson)
+    {
+        using var document = JsonDocument.Parse(schemaJson);
+        var schema = new Dictionary<string, JsonElement>();
+        foreach (var property in document.RootElement.EnumerateObject())
+        {
+            schema[property.Name] = property.Value.Clone();
+        }
+
+        return schema;
     }
 
     public static Tool ToTool(ToolDefinition tool)

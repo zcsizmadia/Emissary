@@ -60,6 +60,13 @@ public sealed class AgentOptions
     /// <summary>Optional effort budget; <see langword="null"/> uses the model default.</summary>
     public EffortLevel? Effort { get; set; }
 
+    /// <summary>
+    /// Optional strict JSON Schema the final answer must conform to (structured outputs) —
+    /// typically a generated <c>[ClaudeSchema]</c> type's <c>JsonSchema</c> property.
+    /// Parse the result with <see cref="AgentResult.FinalAs{T}"/>.
+    /// </summary>
+    public string? OutputSchemaJson { get; set; }
+
     /// <summary>API key override; <see langword="null"/> uses the ANTHROPIC_API_KEY environment variable.</summary>
     public string? ApiKey { get; set; }
 }

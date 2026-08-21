@@ -1,9 +1,43 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Emissary.Tests;
 
+internal sealed record TypedAnswer(string Text, int Score);
+
+[JsonSerializable(typeof(TypedAnswer))]
+internal sealed partial class TestJsonContext : JsonSerializerContext;
+
 public sealed class ConversationModelTests
 {
+    private static AgentResult ResultWithFinalText(string text) => new()
+    {
+        Conversation = Conversation.Start()
+            .Append(Message.User("q"))
+            .Append(new Message(MessageRole.Assistant, [new TextBlock(text)])),
+        StopReason = AgentStopReason.Completed,
+        Usage = AgentUsage.Zero,
+    };
+
+    [Test]
+    public async Task FinalAs_deserializes_structured_output()
+    {
+        var result = ResultWithFinalText("""{"Text":"ok","Score":9}""");
+
+        var answer = result.FinalAs(TestJsonContext.Default.TypedAnswer);
+
+        await Assert.That(answer).IsEqualTo(new TypedAnswer("ok", 9));
+    }
+
+    [Test]
+    public async Task FinalAs_throws_when_output_is_null()
+    {
+        var result = ResultWithFinalText("null");
+
+        await Assert.That(() => result.FinalAs(TestJsonContext.Default.TypedAnswer))
+            .Throws<InvalidOperationException>();
+    }
+
     [Test]
     public async Task Conversation_starts_empty_with_fresh_id()
     {

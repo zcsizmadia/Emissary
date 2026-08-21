@@ -46,4 +46,16 @@ public sealed class AgentResult
     /// <summary>The text of the last assistant message, or "" if there is none.</summary>
     public string FinalText =>
         Conversation.Messages.LastOrDefault(m => m.Role == MessageRole.Assistant)?.Text ?? "";
+
+    /// <summary>
+    /// Deserializes <see cref="FinalText"/> as <typeparamref name="T"/> — for runs configured
+    /// with <see cref="AgentOptions.OutputSchemaJson"/>. AOT-safe: pass source-generated metadata
+    /// (<c>YourJsonContext.Default.YourType</c>).
+    /// </summary>
+    /// <typeparam name="T">The structured output type.</typeparam>
+    /// <param name="typeInfo">Source-generated serializer metadata for <typeparamref name="T"/>.</param>
+    /// <exception cref="InvalidOperationException">The final text is not a <typeparamref name="T"/>.</exception>
+    public T FinalAs<T>(System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo) =>
+        System.Text.Json.JsonSerializer.Deserialize(FinalText, typeInfo)
+            ?? throw new InvalidOperationException("The final assistant text deserialized to null.");
 }

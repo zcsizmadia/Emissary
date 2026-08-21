@@ -143,6 +143,7 @@ public sealed class ClaudeAgent
         _options.MaxTokens,
         _options.Thinking,
         _options.Effort,
+        _options.OutputSchemaJson,
         [.. conversation.Messages],
         [.. _options.Tools]);
 

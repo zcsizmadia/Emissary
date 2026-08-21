@@ -11,9 +11,10 @@ public sealed class AnthropicMapperTests
         string? system = null,
         ThinkingMode thinking = ThinkingMode.Adaptive,
         EffortLevel? effort = null,
+        string? outputSchemaJson = null,
         IReadOnlyList<ToolDefinition>? tools = null,
         IReadOnlyList<Emissary.Message>? messages = null) =>
-        new("claude-opus-5", system, 1024, thinking, effort,
+        new("claude-opus-5", system, 1024, thinking, effort, outputSchemaJson,
             messages ?? [Emissary.Message.User("hi")], tools ?? []);
 
     [Test]
@@ -40,6 +41,38 @@ public sealed class AnthropicMapperTests
         await Assert.That(parameters.System).IsNotNull();
         await Assert.That(parameters.Tools!.Count).IsEqualTo(1);
         await Assert.That(parameters.OutputConfig).IsNotNull();
+    }
+
+    [Test]
+    public async Task Output_schema_maps_to_json_format_without_effort()
+    {
+        var parameters = AnthropicMapper.ToCreateParams(Request(
+            outputSchemaJson: """{"type":"object","properties":{},"additionalProperties":false}"""));
+
+        await Assert.That(parameters.OutputConfig).IsNotNull();
+        await Assert.That(parameters.OutputConfig!.Format).IsNotNull();
+    }
+
+    [Test]
+    public async Task Output_schema_and_effort_combine()
+    {
+        var parameters = AnthropicMapper.ToCreateParams(Request(
+            effort: EffortLevel.Low,
+            outputSchemaJson: """{"type":"object","properties":{}}"""));
+
+        await Assert.That(parameters.OutputConfig!.Format).IsNotNull();
+        await Assert.That(parameters.OutputConfig!.Effort).IsNotNull();
+    }
+
+    [Test]
+    public async Task ParseSchemaObject_clones_top_level_members()
+    {
+        var schema = AnthropicMapper.ParseSchemaObject(
+            """{"type":"object","properties":{"a":{"type":"string"}},"required":["a"]}""");
+
+        await Assert.That(schema.Keys).Contains("type");
+        await Assert.That(schema.Keys).Contains("properties");
+        await Assert.That(schema.Keys).Contains("required");
     }
 
     [Test]
