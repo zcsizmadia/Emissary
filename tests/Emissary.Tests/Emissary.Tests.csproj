@@ -6,9 +6,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Emissary\Emissary.csproj" />
+    <!-- Runs the generator on this project (integration tests) AND references its assembly
+         (driver-based unit tests). -->
+    <ProjectReference Include="..\..\src\Emissary.SourceGenerators\Emissary.SourceGenerators.csproj" OutputItemType="Analyzer" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
     <PackageReference Include="TUnit" />
   </ItemGroup>
