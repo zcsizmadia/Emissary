@@ -14,12 +14,12 @@ public sealed class ClaudeToolGenerator : IIncrementalGenerator
     /// <inheritdoc />
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        var models = context.SyntaxProvider.ForAttributeWithMetadataName(
+        var tools = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Emissary.ClaudeToolAttribute",
             static (node, _) => node is MethodDeclarationSyntax,
             static (ctx, _) => ToolAnalyzer.Analyze(ctx));
 
-        context.RegisterSourceOutput(models, static (production, model) =>
+        context.RegisterSourceOutput(tools, static (production, model) =>
         {
             foreach (var diagnostic in model.Diagnostics)
             {
@@ -29,6 +29,24 @@ public sealed class ClaudeToolGenerator : IIncrementalGenerator
             if (!model.HasErrors)
             {
                 production.AddSource(model.HintName, ToolEmitter.Emit(model));
+            }
+        });
+
+        var schemas = context.SyntaxProvider.ForAttributeWithMetadataName(
+            "Emissary.ClaudeSchemaAttribute",
+            static (node, _) => node is TypeDeclarationSyntax,
+            static (ctx, _) => SchemaAnalyzer.Analyze(ctx));
+
+        context.RegisterSourceOutput(schemas, static (production, model) =>
+        {
+            foreach (var diagnostic in model.Diagnostics)
+            {
+                production.ReportDiagnostic(diagnostic);
+            }
+
+            if (!model.HasErrors)
+            {
+                production.AddSource(model.HintName, SchemaEmitter.Emit(model));
             }
         });
     }

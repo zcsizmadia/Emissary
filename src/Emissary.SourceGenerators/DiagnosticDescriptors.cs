@@ -17,7 +17,7 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor UnsupportedParameterType = new(
         id: "EMS002",
         title: "Unsupported tool parameter type",
-        messageFormat: "Parameter '{0}' of tool method '{1}' has unsupported type '{2}'. Supported: string, bool, int, long, double, enums, arrays of those, records/objects composed of those, and CancellationToken.",
+        messageFormat: "Parameter or member '{0}' of '{1}' has unsupported type '{2}'. Supported: string, bool, int, long, double, enums, arrays of those, records/objects composed of those, and CancellationToken.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -25,7 +25,7 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor ContainingTypeNotPartial = new(
         id: "EMS004",
         title: "Containing type must be partial",
-        messageFormat: "Type '{0}' containing tool method '{1}' must be declared partial so the generator can add the tool definition",
+        messageFormat: "Type '{0}' must be declared partial so the generator can extend it (required by '{1}')",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -48,8 +48,16 @@ internal static class DiagnosticDescriptors
 
     public static readonly DiagnosticDescriptor GenericsNotSupported = new(
         id: "EMS007",
-        title: "Generic tool methods are not supported",
-        messageFormat: "Tool method '{0}' is generic or is declared in a generic type; tools must be non-generic",
+        title: "Generic tool methods and schema types are not supported",
+        messageFormat: "'{0}' is generic or is declared in a generic type; tools and schema types must be non-generic",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor TypeNotSchemaRepresentable = new(
+        id: "EMS008",
+        title: "Type is not schema-representable",
+        messageFormat: "Type '{0}' marked [ClaudeSchema] is not schema-representable. It needs a single public parameterized constructor or public writable properties, without cycles, generics, or abstract types.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);

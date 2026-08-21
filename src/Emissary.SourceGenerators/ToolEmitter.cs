@@ -201,7 +201,7 @@ internal static class ToolEmitter
         string fullName = enumType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         builder.AppendLine($"    static {fullName} {EnumParserName(enumType)}(string value) => value switch");
         builder.AppendLine("    {");
-        foreach (string member in EnumMemberNames(enumType))
+        foreach (string member in SchemaJson.EnumMemberNames(enumType))
         {
             builder.AppendLine($"        {Literal(member)} => {fullName}.{member},");
         }
@@ -225,82 +225,12 @@ internal static class ToolEmitter
         builder.AppendLine("    }");
     }
 
-    internal static string BuildSchema(ToolModel model)
-    {
-        var builder = new StringBuilder(256);
-        builder.Append('{');
-        AppendObjectBody(builder, model, model.Parameters.Where(p => !p.IsCancellationToken));
-        builder.Append('}');
-        return builder.ToString();
-    }
-
-    private static void AppendObjectBody(StringBuilder builder, ToolModel model, IEnumerable<ParameterModel> members)
-    {
-        builder.Append("\"type\":\"object\",\"properties\":{");
-
-        bool first = true;
-        var required = new List<string>();
-        foreach (var member in members)
-        {
-            if (!first)
-            {
-                builder.Append(',');
-            }
-
-            first = false;
-            builder.Append('"').Append(member.JsonName).Append("\":");
-            AppendTypeSchema(builder, model, member);
-
-            if (!member.IsOptional)
-            {
-                required.Add("\"" + member.JsonName + "\"");
-            }
-        }
-
-        builder.Append('}');
-        if (required.Count > 0)
-        {
-            builder.Append(",\"required\":[").Append(string.Join(",", required)).Append(']');
-        }
-    }
-
-    private static void AppendTypeSchema(StringBuilder builder, ToolModel model, ParameterModel parameter)
-    {
-        builder.Append('{');
-        switch (parameter.Kind)
-        {
-            case JsonKind.Enum:
-                builder.Append("\"type\":\"string\",\"enum\":[")
-                    .Append(string.Join(",", EnumMemberNames(parameter.EnumType!).Select(n => "\"" + n + "\"")))
-                    .Append(']');
-                break;
-            case JsonKind.Array:
-                builder.Append("\"type\":\"array\",\"items\":{\"type\":\"")
-                    .Append(SchemaTypeName(parameter.ElementKind)).Append("\"}");
-                break;
-            case JsonKind.Object:
-                AppendObjectBody(builder, model, model.Pocos[parameter.PocoIndex].Members);
-                break;
-            default:
-                builder.Append("\"type\":\"").Append(SchemaTypeName(parameter.Kind)).Append('"');
-                break;
-        }
-
-        if (parameter.Description is not null)
-        {
-            builder.Append(",\"description\":\"").Append(DocComments.JsonEscape(parameter.Description)).Append('"');
-        }
-
-        builder.Append('}');
-    }
-
-    private static string SchemaTypeName(JsonKind kind) => kind switch
-    {
-        JsonKind.String => "string",
-        JsonKind.Bool => "boolean",
-        JsonKind.Int or JsonKind.Long => "integer",
-        _ => "number",
-    };
+    internal static string BuildSchema(ToolModel model) =>
+        SchemaJson.BuildObject(
+            model.Pocos,
+            model.Parameters.Where(p => !p.IsCancellationToken),
+            strict: false,
+            rootDescription: null);
 
     private static string ElementTypeName(JsonKind kind) => kind switch
     {
@@ -310,9 +240,6 @@ internal static class ToolEmitter
         JsonKind.Long => "long",
         _ => "double",
     };
-
-    private static IEnumerable<string> EnumMemberNames(INamedTypeSymbol enumType) =>
-        enumType.GetMembers().OfType<IFieldSymbol>().Where(f => f.HasConstantValue).Select(f => f.Name);
 
     private static string EnumParserName(INamedTypeSymbol enumType) =>
         "__EmissaryParse_" + NameHelpers.ToIdentifier(enumType.ToDisplayString());

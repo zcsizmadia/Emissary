@@ -14,8 +14,7 @@ internal sealed class ToolAnalyzer
     private readonly AttributeData _attribute;
     private readonly Location _location;
     private readonly ToolModel _model = new();
-    private readonly Dictionary<INamedTypeSymbol, int> _pocoIndex = new(SymbolEqualityComparer.Default);
-    private readonly HashSet<INamedTypeSymbol> _visiting = new(SymbolEqualityComparer.Default);
+    private readonly TypeMapper _mapper;
 
     private ToolAnalyzer(GeneratorAttributeSyntaxContext context)
     {
@@ -23,6 +22,7 @@ internal sealed class ToolAnalyzer
         _syntax = (MethodDeclarationSyntax)context.TargetNode;
         _attribute = context.Attributes[0];
         _location = _syntax.Identifier.GetLocation();
+        _mapper = new TypeMapper(_model.Pocos, _model.Diagnostics, _location, _method.Name);
     }
 
     public static ToolModel Analyze(GeneratorAttributeSyntaxContext context) =>
@@ -58,7 +58,7 @@ internal sealed class ToolAnalyzer
                 Report(DiagnosticDescriptors.ContainingTypeNotPartial, typeDecl.Identifier.ValueText, _method.Name);
             }
 
-            _model.Containers.Insert(0, DeclarationKeyword(typeDecl) + " " + typeDecl.Identifier.ValueText);
+            _model.Containers.Insert(0, ContainerSyntax.DeclarationKeyword(typeDecl) + " " + typeDecl.Identifier.ValueText);
         }
 
         _model.Namespace = _method.ContainingNamespace.IsGlobalNamespace
@@ -134,7 +134,7 @@ internal sealed class ToolAnalyzer
                 parameterModel.Description = doc;
             }
 
-            if (parameter.RefKind != RefKind.None || !TryMapKind(parameter.Type, parameterModel))
+            if (parameter.RefKind != RefKind.None || !_mapper.TryMapKind(parameter.Type, parameterModel))
             {
                 Report(DiagnosticDescriptors.UnsupportedParameterType,
                     parameter.Name, _method.Name, parameter.Type.ToDisplayString());
@@ -144,7 +144,7 @@ internal sealed class ToolAnalyzer
             if (parameter.HasExplicitDefaultValue)
             {
                 parameterModel.IsOptional = true;
-                parameterModel.DefaultLiteral = DefaultLiteral(parameterModel, parameter.ExplicitDefaultValue);
+                parameterModel.DefaultLiteral = TypeMapper.DefaultLiteral(parameterModel, parameter.ExplicitDefaultValue);
             }
 
             _model.Parameters.Add(parameterModel);
@@ -164,217 +164,20 @@ internal sealed class ToolAnalyzer
             }
         }
 
-        var probe = new ParameterModel();
-        if (!TryMapReturnKind(returnType, probe))
+        if (TypeMapper.TryMapPrimitive(returnType, out JsonKind primitive))
         {
-            Report(DiagnosticDescriptors.UnsupportedReturnType, _method.Name, _method.ReturnType.ToDisplayString());
+            _model.ReturnKind = primitive;
             return;
         }
 
-        _model.ReturnKind = probe.Kind;
+        if (returnType.TypeKind == TypeKind.Enum)
+        {
+            _model.ReturnKind = JsonKind.Enum;
+            return;
+        }
+
+        Report(DiagnosticDescriptors.UnsupportedReturnType, _method.Name, _method.ReturnType.ToDisplayString());
     }
-
-    private static bool TryMapReturnKind(ITypeSymbol type, ParameterModel probe)
-    {
-        if (TryMapPrimitive(type, out JsonKind primitive))
-        {
-            probe.Kind = primitive;
-            return true;
-        }
-
-        if (type.TypeKind == TypeKind.Enum)
-        {
-            probe.Kind = JsonKind.Enum;
-            return true;
-        }
-
-        return false;
-    }
-
-    private bool TryMapKind(ITypeSymbol type, ParameterModel model)
-    {
-        if (TryMapPrimitive(type, out JsonKind primitive))
-        {
-            model.Kind = primitive;
-            return true;
-        }
-
-        if (type.TypeKind == TypeKind.Enum)
-        {
-            model.Kind = JsonKind.Enum;
-            model.EnumType = (INamedTypeSymbol)type;
-            return true;
-        }
-
-        if (type is IArrayTypeSymbol array && TryMapPrimitive(array.ElementType, out JsonKind element))
-        {
-            model.Kind = JsonKind.Array;
-            model.ElementKind = element;
-            return true;
-        }
-
-        if (type is INamedTypeSymbol named
-            && named.TypeKind is TypeKind.Class or TypeKind.Struct
-            && named.SpecialType == SpecialType.None
-            && TryAnalyzePoco(named, out int pocoIndex))
-        {
-            model.Kind = JsonKind.Object;
-            model.PocoIndex = pocoIndex;
-            return true;
-        }
-
-        return false;
-    }
-
-    private bool TryAnalyzePoco(INamedTypeSymbol type, out int index)
-    {
-        if (_pocoIndex.TryGetValue(type, out index))
-        {
-            return true;
-        }
-
-        index = -1;
-        if (type.IsGenericType || type.IsAbstract || !_visiting.Add(type))
-        {
-            return false;
-        }
-
-        try
-        {
-            var poco = new PocoModel
-            {
-                FullName = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                BinderName = "__EmissaryBind_" + NameHelpers.ToIdentifier(type.ToDisplayString()),
-            };
-
-            if (!TryCollectMembers(type, poco))
-            {
-                return false;
-            }
-
-            index = _model.Pocos.Count;
-            _model.Pocos.Add(poco);
-            _pocoIndex.Add(type, index);
-            return true;
-        }
-        finally
-        {
-            _visiting.Remove(type);
-        }
-    }
-
-    private bool TryCollectMembers(INamedTypeSymbol type, PocoModel poco)
-    {
-        var publicConstructors = type.InstanceConstructors
-            .Where(c => c.DeclaredAccessibility == Accessibility.Public)
-            .ToList();
-        var parameterized = publicConstructors.Where(c => c.Parameters.Length > 0).ToList();
-
-        if (parameterized.Count == 1)
-        {
-            poco.UsesConstructor = true;
-            foreach (var parameter in parameterized[0].Parameters)
-            {
-                var member = CreateMember(type, parameter.Name, parameter.Type);
-                if (member is null)
-                {
-                    return false;
-                }
-
-                if (parameter.HasExplicitDefaultValue)
-                {
-                    member.IsOptional = true;
-                    member.DefaultLiteral = DefaultLiteral(member, parameter.ExplicitDefaultValue);
-                }
-
-                poco.Members.Add(member);
-            }
-
-            return true;
-        }
-
-        if (parameterized.Count > 1 || publicConstructors.Count == 0)
-        {
-            return false;
-        }
-
-        foreach (var property in type.GetMembers().OfType<IPropertySymbol>())
-        {
-            if (property.IsStatic
-                || property.IsIndexer
-                || property.DeclaredAccessibility != Accessibility.Public
-                || property.SetMethod is not { DeclaredAccessibility: Accessibility.Public })
-            {
-                continue;
-            }
-
-            var member = CreateMember(type, property.Name, property.Type);
-            if (member is null)
-            {
-                return false;
-            }
-
-            member.IsOptional = !property.IsRequired;
-            member.DefaultLiteral = "default";
-            poco.Members.Add(member);
-        }
-
-        return poco.Members.Count > 0;
-    }
-
-    private ParameterModel? CreateMember(INamedTypeSymbol owner, string memberName, ITypeSymbol memberType)
-    {
-        var member = new ParameterModel
-        {
-            CSharpName = memberName,
-            JsonName = NameHelpers.ToSnakeCase(memberName),
-            DeclaredTypeFullName = memberType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-        };
-
-        if (!TryMapKind(memberType, member))
-        {
-            Report(DiagnosticDescriptors.UnsupportedParameterType,
-                owner.Name + "." + memberName, _method.Name, memberType.ToDisplayString());
-            return null;
-        }
-
-        return member;
-    }
-
-    private static string DefaultLiteral(ParameterModel model, object? value) =>
-        model.Kind == JsonKind.Enum
-            ? NameHelpers.FormatEnumDefault(model.EnumType!, value)
-            : NameHelpers.FormatDefault(value);
-
-    private static bool TryMapPrimitive(ITypeSymbol type, out JsonKind kind)
-    {
-        switch (type.SpecialType)
-        {
-            case SpecialType.System_String:
-                kind = JsonKind.String;
-                return true;
-            case SpecialType.System_Boolean:
-                kind = JsonKind.Bool;
-                return true;
-            case SpecialType.System_Int32:
-                kind = JsonKind.Int;
-                return true;
-            case SpecialType.System_Int64:
-                kind = JsonKind.Long;
-                return true;
-            case SpecialType.System_Double:
-                kind = JsonKind.Double;
-                return true;
-            default:
-                kind = default;
-                return false;
-        }
-    }
-
-    private static string DeclarationKeyword(TypeDeclarationSyntax typeDecl) =>
-        typeDecl is RecordDeclarationSyntax { ClassOrStructKeyword.ValueText.Length: > 0 } record
-            ? "record " + record.ClassOrStructKeyword.ValueText
-            : typeDecl.Keyword.ValueText;
 
     private void Report(DiagnosticDescriptor descriptor, params object[] args) =>
         _model.Diagnostics.Add(Diagnostic.Create(descriptor, _location, args));

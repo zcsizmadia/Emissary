@@ -9,6 +9,16 @@ await Check(AotTools.AddTool, """{"left":5}""", "15");
 await Check(AotTools.DescribeTool, """{"color":"Green","tags":["fast","native"]}""", "Green:fast+native");
 await Check(AotTools.ShipTool, """{"order":{"id":"A1","address":{"city":"Oslo","zip":"0150"}}}""", "A1->Oslo/0150 x1");
 
+if (!Verdict.JsonSchema.Contains("\"additionalProperties\":false", StringComparison.Ordinal))
+{
+    Console.WriteLine("MISMATCH schema: strict marker missing.");
+    failures++;
+}
+else
+{
+    Console.WriteLine("ok schema: strict");
+}
+
 if (failures > 0)
 {
     Console.WriteLine($"FAILED: {failures} tool check(s) failed.");
@@ -66,4 +76,7 @@ namespace Emissary.AotProof
     internal sealed record Address(string City, string Zip);
 
     internal sealed record Order(string Id, Address Address, int Quantity = 1);
+
+    [ClaudeSchema]
+    internal sealed partial record Verdict(string Summary, bool Approved);
 }
