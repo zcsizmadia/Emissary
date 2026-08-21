@@ -118,6 +118,34 @@ public sealed class AgentRunExpectations
         return this;
     }
 
+    /// <summary>A shadow run must have planned (intercepted) a call to this tool.</summary>
+    /// <param name="toolName">The wire name of the privileged tool.</param>
+    public AgentRunExpectations EffectPlanned(string toolName)
+    {
+        if (!_result.PlannedEffects.Any(e => e.ToolName == toolName))
+        {
+            throw Failure($"expected a planned effect for tool '{toolName}', but the plan contains: {DescribePlan()}.");
+        }
+
+        return this;
+    }
+
+    /// <summary>The run must not have planned any effects (live run, or shadow run with none).</summary>
+    public AgentRunExpectations NoPlannedEffects()
+    {
+        if (_result.PlannedEffects.Count > 0)
+        {
+            throw Failure($"expected no planned effects, but the plan contains: {DescribePlan()}.");
+        }
+
+        return this;
+    }
+
+    private string DescribePlan() =>
+        _result.PlannedEffects.Count == 0
+            ? "(none)"
+            : string.Join(", ", _result.PlannedEffects.Select(e => e.ToolName));
+
     /// <summary>The final assistant text must contain this fragment (ordinal comparison).</summary>
     /// <param name="expected">The expected fragment.</param>
     public AgentRunExpectations FinalTextContains(string expected)

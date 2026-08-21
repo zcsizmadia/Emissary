@@ -283,7 +283,7 @@ public sealed class GeneratorEmissionTests
         string source = GeneratorHarness.GeneratedSource(result);
         await Assert.That(source).Contains("\"admin\",");
         await Assert.That(source).Contains("true,");
-        await Assert.That(source).Contains("true);");
+        await Assert.That(source).Contains("null);");
     }
 
     [Test]
@@ -300,7 +300,55 @@ public sealed class GeneratorEmissionTests
         string source = GeneratorHarness.GeneratedSource(result);
         await Assert.That(source).Contains("null,");
         await Assert.That(source).Contains("false,");
-        await Assert.That(source).Contains("false);");
+        await Assert.That(source).Contains("null);");
+    }
+
+    [Test]
+    public async Task CompensatedBy_wires_the_compensator_dispatcher()
+    {
+        var result = await GeneratorHarness.RunClean("""
+            public static partial class Tools
+            {
+                [Emissary.ClaudeTool(Description = "d", CompensatedBy = nameof(Cancel))]
+                public static string Book(string room) => room;
+
+                [Emissary.ClaudeTool(Description = "d")]
+                public static string Cancel(string room) => room;
+            }
+            """);
+
+        var bookSource = result.GeneratedSources.Single(s => s.HintName.Contains("Book")).SourceText.ToString();
+        await Assert.That(bookSource).Contains("__EmissaryInvoke_Cancel);");
+    }
+
+    [Test]
+    public async Task EMS009_when_compensator_is_missing()
+    {
+        var result = GeneratorHarness.Run("""
+            public static partial class Tools
+            {
+                [Emissary.ClaudeTool(Description = "d", CompensatedBy = "Nope")]
+                public static string Book(string room) => room;
+            }
+            """, out _);
+
+        await Assert.That(GeneratorHarness.DiagnosticIds(result)).Contains("EMS009");
+    }
+
+    [Test]
+    public async Task EMS009_when_compensator_is_not_a_tool()
+    {
+        var result = GeneratorHarness.Run("""
+            public static partial class Tools
+            {
+                [Emissary.ClaudeTool(Description = "d", CompensatedBy = nameof(Cancel))]
+                public static string Book(string room) => room;
+
+                public static string Cancel(string room) => room;
+            }
+            """, out _);
+
+        await Assert.That(GeneratorHarness.DiagnosticIds(result)).Contains("EMS009");
     }
 
     [Test]

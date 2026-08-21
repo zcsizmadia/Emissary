@@ -20,6 +20,11 @@
       "file": "src/Emissary.SourceGenerators/ToolAnalyzer.cs",
       "lineContains": "Emissary.AuthorizeToolAttribute",
       "reason": "AttributeData.AttributeClass is null only for attribute syntax Roslyn cannot bind to any symbol at all; unresolved attributes bind to error symbols instead, so the null outcome is not constructible from test source."
+    },
+    {
+      "file": "src/Emissary.SourceGenerators/ToolAnalyzer.cs",
+      "lineContains": "Emissary.ClaudeToolAttribute",
+      "reason": "Same AttributeData.AttributeClass null-binding artifact as the AuthorizeTool entry."
     }
   ]
 }

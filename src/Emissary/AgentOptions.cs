@@ -10,6 +10,20 @@ public enum ThinkingMode
     Disabled,
 }
 
+/// <summary>How tool effects are executed.</summary>
+public enum ExecutionMode
+{
+    /// <summary>Tools execute normally.</summary>
+    Live,
+
+    /// <summary>
+    /// Privileged tools are intercepted instead of executed: each call is recorded as a
+    /// <see cref="PlannedEffect"/> on the result (a plan of effects for human approval) and the
+    /// model receives a simulated acknowledgment. Non-privileged tools run normally.
+    /// </summary>
+    Shadow,
+}
+
 /// <summary>How Emissary manages prompt caching.</summary>
 public enum PromptCacheMode
 {
@@ -79,6 +93,9 @@ public sealed class AgentOptions
 
     /// <summary>Extended thinking configuration.</summary>
     public ThinkingMode Thinking { get; set; } = ThinkingMode.Adaptive;
+
+    /// <summary>How tool effects execute; <see cref="ExecutionMode.Shadow"/> intercepts privileged tools.</summary>
+    public ExecutionMode Mode { get; set; } = ExecutionMode.Live;
 
     /// <summary>Prompt-cache management; automatic breakpoints by default.</summary>
     public PromptCacheMode PromptCaching { get; set; } = PromptCacheMode.Automatic;
