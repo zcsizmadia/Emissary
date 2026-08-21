@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Emissary/Emissary.csproj" />
     <Project Path="src/Emissary.SourceGenerators/Emissary.SourceGenerators.csproj" />
+    <Project Path="src/Emissary.Testing/Emissary.Testing.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Emissary.Tests/Emissary.Tests.csproj" />

@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "turns": [
+    {
+      "request": {
+        "model": "claude-opus-5",
+        "system": "Use tools.",
+        "maxTokens": 4096,
+        "thinking": "Adaptive",
+        "messages": [
+          {
+            "role": "User",
+            "content": [
+              {
+                "type": "text",
+                "text": "go"
+              }
+            ]
+          }
+        ],
+        "toolNames": [
+          "echo"
+        ]
+      },
+      "response": {
+        "content": [
+          {
+            "type": "tool_use",
+            "id": "t1",
+            "name": "echo",
+            "input": {
+              "text": "ping"
+            }
+          }
+        ],
+        "stopReason": "tool_use",
+        "inputTokens": 10,
+        "outputTokens": 5
+      }
+    },
+    {
+      "request": {
+        "model": "claude-opus-5",
+        "system": "Use tools.",
+        "maxTokens": 4096,
+        "thinking": "Adaptive",
+        "messages": [
+          {
+            "role": "User",
+            "content": [
+              {
+                "type": "text",
+                "text": "go"
+              }
+            ]
+          },
+          {
+            "role": "Assistant",
+            "content": [
+              {
+                "type": "tool_use",
+                "id": "t1",
+                "name": "echo",
+                "input": {
+                  "text": "ping"
+                }
+              }
+            ]
+          },
+          {
+            "role": "User",
+            "content": [
+              {
+                "type": "tool_result",
+                "toolUseId": "t1",
+                "content": "ping",
+                "isError": false
+              }
+            ]
+          }
+        ],
+        "toolNames": [
+          "echo"
+        ]
+      },
+      "response": {
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "planning the reply",
+            "signature": "sig-1"
+          },
+          {
+            "type": "text",
+            "text": "done"
+          }
+        ],
+        "stopReason": "end_turn",
+        "inputTokens": 20,
+        "outputTokens": 9
+      }
+    }
+  ]
+}

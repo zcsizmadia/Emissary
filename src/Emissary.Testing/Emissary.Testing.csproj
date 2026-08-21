@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Emissary.Testing</RootNamespace>
+    <Description>Test assertions for Emissary agent runs and replayed trajectories. Framework-agnostic: works with TUnit, xUnit, NUnit, or MSTest.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Emissary\Emissary.csproj" />
+  </ItemGroup>
+
+</Project>

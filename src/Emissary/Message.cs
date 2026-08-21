@@ -22,5 +22,6 @@ public sealed record Message(MessageRole Role, ImmutableArray<ContentBlock> Cont
     public static Message User(string text) => new(MessageRole.User, [new TextBlock(text)]);
 
     /// <summary>The concatenated text of all <see cref="TextBlock"/>s in this message.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
     public string Text => string.Concat(Content.OfType<TextBlock>().Select(t => t.Text));
 }
