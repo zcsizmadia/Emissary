@@ -95,6 +95,12 @@ all spans/metrics visible in Aspire.
   tools without a human gate (prompt-injection defense as information-flow control).
 - Shadow mode (plan-of-effects for approval); compensation sagas may trail into 5.5.
 
+*Status: tool-call contracts (ToolRules: Require/Terminal/Limit, enforced per batch with
+model-visible violation results), [AuthorizeTool] policy gating with pre-prompt schema filtering
+(deny-by-default without an authorizer), and taint tracking (Untrusted output blocks Privileged
+tools; AgentResult.Tainted + Tainted()/NotTainted() assertions) landed. Deferred to 5.5: shadow
+mode, compensation sagas, sample 06, source-generated contract declarations.*
+
 **Exit:** the auditor demo — injected instruction in tainted web content provably fails to trigger a
 privileged tool, captured in a replayable trajectory.
 

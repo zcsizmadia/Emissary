@@ -21,4 +21,18 @@ public sealed class ClaudeToolAttribute : Attribute
     /// Claude picks tools by their descriptions, so an empty one is almost always a bug.
     /// </summary>
     public string? Description { get; set; }
+
+    /// <summary>
+    /// Marks the tool's output as untrusted (web content, user documents, external email...).
+    /// A successful call taints the rest of the run: <see cref="Privileged"/> tools are then
+    /// blocked — the information-flow guard against prompt injection.
+    /// </summary>
+    public bool Untrusted { get; set; }
+
+    /// <summary>
+    /// Marks the tool as privileged (payments, deletions, outbound messages...). Privileged tools
+    /// are blocked for the rest of a run once any <see cref="Untrusted"/> tool output has entered
+    /// the conversation.
+    /// </summary>
+    public bool Privileged { get; set; }
 }

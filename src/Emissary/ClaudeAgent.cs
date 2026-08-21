@@ -13,6 +13,7 @@ public sealed class ClaudeAgent
 {
     private readonly AgentOptions _options;
     private readonly IModelTransport _transport;
+    private readonly ToolDefinition[] _activeTools;
 
     /// <summary>Creates an agent talking to the Claude API.</summary>
     /// <param name="options">The agent configuration.</param>
@@ -55,6 +56,12 @@ public sealed class ClaudeAgent
 
         _options = options;
         _transport = transport;
+
+        // Pre-prompt schema filtering: policy-gated tools the authorizer does not grant are
+        // invisible to the model and unexecutable. No authorizer means deny by default.
+        _activeTools = options.Tools
+            .Where(t => t.RequiredPolicy is null || options.Authorizer?.IsAuthorized(t) == true)
+            .ToArray();
     }
 
     /// <summary>Runs the agent on a single user message and returns the outcome.</summary>
@@ -102,6 +109,7 @@ public sealed class ClaudeAgent
 
         var usage = AgentUsage.Zero;
         var stopReason = AgentStopReason.TurnLimit;
+        var guard = new ToolCallGuard(_options.Rules);
         for (int turn = 0; turn < _options.MaxTurns; turn++)
         {
             ModelResponse? response = null;
@@ -157,7 +165,7 @@ public sealed class ClaudeAgent
             if (response.StopReason == "tool_use")
             {
                 var toolUses = response.Content.OfType<ToolUseBlock>().ToArray();
-                var results = await ExecuteToolsAsync(toolUses, cancellationToken).ConfigureAwait(false);
+                var results = await ExecuteToolsAsync(toolUses, guard, cancellationToken).ConfigureAwait(false);
                 for (int i = 0; i < results.Length; i++)
                 {
                     yield return new AgentToolResultEvent(
@@ -182,7 +190,13 @@ public sealed class ClaudeAgent
             Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
             new KeyValuePair<string, object?>("gen_ai.request.model", _options.Model));
 
-        yield return Complete(conversation, stopReason, usage);
+        yield return new AgentCompletedEvent(new AgentResult
+        {
+            Conversation = conversation,
+            StopReason = stopReason,
+            Usage = usage,
+            Tainted = guard.Tainted,
+        });
     }
 
     private void RecordUsage(ModelResponse response)
@@ -194,9 +208,6 @@ public sealed class ClaudeAgent
         EmissaryDiagnostics.CacheReadTokens.Add(response.CacheReadInputTokens, modelTag);
     }
 
-    private static AgentCompletedEvent Complete(Conversation conversation, AgentStopReason stopReason, AgentUsage usage) =>
-        new(new AgentResult { Conversation = conversation, StopReason = stopReason, Usage = usage });
-
     private ModelRequest BuildRequest(Conversation conversation) => new(
         _options.Model,
         _options.SystemPrompt,
@@ -206,33 +217,57 @@ public sealed class ClaudeAgent
         _options.OutputSchemaJson,
         _options.PromptCaching,
         [.. conversation.Messages],
-        [.. _options.Tools]);
+        _activeTools);
 
     private async Task<ToolResultBlock[]> ExecuteToolsAsync(
         ToolUseBlock[] toolUses,
+        ToolCallGuard guard,
         CancellationToken cancellationToken)
     {
+        // Guard checks run sequentially in tool-use order (state frozen for the batch);
+        // permitted calls then execute in parallel; outcomes are recorded in order.
+        var tools = new ToolDefinition?[toolUses.Length];
         var tasks = new Task<ToolResultBlock>[toolUses.Length];
         for (int i = 0; i < toolUses.Length; i++)
         {
-            tasks[i] = ExecuteToolAsync(toolUses[i], cancellationToken);
+            tools[i] = Array.Find(_activeTools, t => t.Name == toolUses[i].Name);
+            string? violation = tools[i] is { } tool ? guard.Check(tool) : null;
+            tasks[i] = ExecuteToolAsync(tools[i], violation, toolUses[i], cancellationToken);
         }
 
-        return await Task.WhenAll(tasks).ConfigureAwait(false);
+        var results = await Task.WhenAll(tasks).ConfigureAwait(false);
+        for (int i = 0; i < results.Length; i++)
+        {
+            if (tools[i] is { } tool)
+            {
+                guard.Record(tool, !results[i].IsError);
+            }
+        }
+
+        return results;
     }
 
-    private async Task<ToolResultBlock> ExecuteToolAsync(ToolUseBlock toolUse, CancellationToken cancellationToken)
+    private static async Task<ToolResultBlock> ExecuteToolAsync(
+        ToolDefinition? tool,
+        string? violation,
+        ToolUseBlock toolUse,
+        CancellationToken cancellationToken)
     {
         using var activity = EmissaryDiagnostics.Source.StartActivity($"execute_tool {toolUse.Name}");
         EmissaryDiagnostics.Tag(activity, "gen_ai.operation.name", "execute_tool");
         EmissaryDiagnostics.Tag(activity, "gen_ai.tool.name", toolUse.Name);
         EmissaryDiagnostics.ToolCalls.Add(1, new KeyValuePair<string, object?>("gen_ai.tool.name", toolUse.Name));
 
-        var tool = _options.Tools.FirstOrDefault(t => t.Name == toolUse.Name);
         if (tool is null)
         {
             EmissaryDiagnostics.Fail(activity, "unknown tool");
             return new ToolResultBlock(toolUse.Id, $"Unknown tool '{toolUse.Name}'.", IsError: true);
+        }
+
+        if (violation is not null)
+        {
+            EmissaryDiagnostics.Fail(activity, violation);
+            return new ToolResultBlock(toolUse.Id, violation, IsError: true);
         }
 
         try

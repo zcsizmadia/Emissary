@@ -52,6 +52,9 @@ internal sealed class ToolModel
     public string ToolName = "";
     public string Description = "";
     public string HintName = "";
+    public string? RequiredPolicy;
+    public bool Untrusted;
+    public bool Privileged;
     public JsonKind ReturnKind;
     public bool IsAsync;
 
