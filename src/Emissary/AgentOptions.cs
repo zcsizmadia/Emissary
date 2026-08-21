@@ -10,6 +10,20 @@ public enum ThinkingMode
     Disabled,
 }
 
+/// <summary>How Emissary manages prompt caching.</summary>
+public enum PromptCacheMode
+{
+    /// <summary>
+    /// Cache breakpoints are placed automatically: after the tool definitions, after the system
+    /// prompt, and after the latest message — so every follow-up turn reads the stable prefix
+    /// from cache. Recommended for multi-turn agents.
+    /// </summary>
+    Automatic,
+
+    /// <summary>No cache breakpoints are sent.</summary>
+    None,
+}
+
 /// <summary>The effort budget for a response.</summary>
 public enum EffortLevel
 {
@@ -56,6 +70,16 @@ public sealed class AgentOptions
 
     /// <summary>Extended thinking configuration.</summary>
     public ThinkingMode Thinking { get; set; } = ThinkingMode.Adaptive;
+
+    /// <summary>Prompt-cache management; automatic breakpoints by default.</summary>
+    public PromptCacheMode PromptCaching { get; set; } = PromptCacheMode.Automatic;
+
+    /// <summary>
+    /// Optional hard cap on total tokens (input + output) for a run. When a turn pushes the
+    /// accumulated usage to or past the budget, the run stops with
+    /// <see cref="AgentStopReason.BudgetExceeded"/> before making another model call.
+    /// </summary>
+    public long? TokenBudget { get; set; }
 
     /// <summary>Optional effort budget; <see langword="null"/> uses the model default.</summary>
     public EffortLevel? Effort { get; set; }

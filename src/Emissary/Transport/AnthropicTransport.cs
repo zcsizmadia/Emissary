@@ -39,6 +39,8 @@ internal sealed class AnthropicTransport : IModelTransport
         var toolParts = new Dictionary<int, (string Id, string Name, StringBuilder Json)>();
         long inputTokens = 0;
         long outputTokens = 0;
+        long cacheCreationTokens = 0;
+        long cacheReadTokens = 0;
         string stopReason = "end_turn";
 
         await foreach (var streamEvent in Client.Messages.CreateStreaming(parameters, cancellationToken: cancellationToken).ConfigureAwait(false))
@@ -46,6 +48,8 @@ internal sealed class AnthropicTransport : IModelTransport
             if (streamEvent.TryPickStart(out var start))
             {
                 inputTokens = start.Message.Usage.InputTokens;
+                cacheCreationTokens = start.Message.Usage.CacheCreationInputTokens ?? 0;
+                cacheReadTokens = start.Message.Usage.CacheReadInputTokens ?? 0;
             }
             else if (streamEvent.TryPickContentBlockStart(out var blockStart))
             {
@@ -121,6 +125,7 @@ internal sealed class AnthropicTransport : IModelTransport
         }
 
         yield return new StreamCompleted(new ModelResponse(
-            [.. blocks.Values], stopReason, inputTokens, outputTokens));
+            [.. blocks.Values], stopReason, inputTokens, outputTokens,
+            cacheCreationTokens, cacheReadTokens));
     }
 }

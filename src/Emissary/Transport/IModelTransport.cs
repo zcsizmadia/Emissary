@@ -20,6 +20,7 @@ internal sealed record ModelRequest(
     ThinkingMode Thinking,
     EffortLevel? Effort,
     string? OutputSchemaJson,
+    PromptCacheMode PromptCaching,
     IReadOnlyList<Message> Messages,
     IReadOnlyList<ToolDefinition> Tools);
 
@@ -28,7 +29,9 @@ internal sealed record ModelResponse(
     ImmutableArray<ContentBlock> Content,
     string StopReason,
     long InputTokens,
-    long OutputTokens);
+    long OutputTokens,
+    long CacheCreationInputTokens = 0,
+    long CacheReadInputTokens = 0);
 
 /// <summary>An event in a transport stream.</summary>
 internal abstract record StreamEvent;

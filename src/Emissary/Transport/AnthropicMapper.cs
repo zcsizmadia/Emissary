@@ -8,19 +8,58 @@ internal static class AnthropicMapper
 {
     public static MessageCreateParams ToCreateParams(ModelRequest request)
     {
+        bool cache = request.PromptCaching == PromptCacheMode.Automatic;
         ThinkingConfigParam thinking = request.Thinking == ThinkingMode.Adaptive
             ? new ThinkingConfigAdaptive()
             : new ThinkingConfigDisabled();
+
+        List<ToolUnion>? tools = null;
+        if (request.Tools.Count > 0)
+        {
+            tools = new List<ToolUnion>(request.Tools.Count);
+            for (int i = 0; i < request.Tools.Count; i++)
+            {
+                tools.Add(ToTool(request.Tools[i], cache && i == request.Tools.Count - 1));
+            }
+        }
+
+        var messages = new List<MessageParam>(request.Messages.Count);
+        for (int i = 0; i < request.Messages.Count; i++)
+        {
+            messages.Add(ToMessageParam(request.Messages[i], cache && i == request.Messages.Count - 1));
+        }
 
         return new MessageCreateParams
         {
             Model = request.Model,
             MaxTokens = request.MaxTokens,
-            System = request.System is { } system ? (MessageCreateParamsSystem)system : null,
+            System = ToSystem(request.System, cache),
             Thinking = thinking,
             OutputConfig = BuildOutputConfig(request),
-            Tools = request.Tools.Count > 0 ? request.Tools.Select(t => (ToolUnion)ToTool(t)).ToList() : null,
-            Messages = request.Messages.Select(ToMessageParam).ToList(),
+            Tools = tools,
+            Messages = messages,
+        };
+    }
+
+    /// <summary>
+    /// Maps the system prompt; with caching, it becomes a text block carrying a cache breakpoint
+    /// so the tools + system prefix is served from cache on every follow-up call.
+    /// </summary>
+    internal static MessageCreateParamsSystem? ToSystem(string? system, bool cache)
+    {
+        if (system is null)
+        {
+            return null;
+        }
+
+        if (!cache)
+        {
+            return system;
+        }
+
+        return new List<TextBlockParam>
+        {
+            new() { Text = system, CacheControl = new CacheControlEphemeral() },
         };
     }
 
@@ -52,7 +91,7 @@ internal static class AnthropicMapper
         return schema;
     }
 
-    public static Tool ToTool(ToolDefinition tool)
+    public static Tool ToTool(ToolDefinition tool, bool cache = false)
     {
         var (properties, required) = ParseSchema(tool.InputSchemaJson);
         return new Tool
@@ -64,6 +103,7 @@ internal static class AnthropicMapper
                 Properties = properties,
                 Required = required,
             },
+            CacheControl = cache ? new CacheControlEphemeral() : null,
         };
     }
 
@@ -85,15 +125,30 @@ internal static class AnthropicMapper
         return (properties, required);
     }
 
-    public static MessageParam ToMessageParam(Message message) => new()
+    public static MessageParam ToMessageParam(Message message, bool cacheLastBlock = false)
     {
-        Role = message.Role == MessageRole.User ? Role.User : Role.Assistant,
-        Content = message.Content.Select(ToContentParam).ToList(),
-    };
+        var content = new List<ContentBlockParam>(message.Content.Length);
+        for (int i = 0; i < message.Content.Length; i++)
+        {
+            content.Add(ToContentParam(message.Content[i], cacheLastBlock && i == message.Content.Length - 1));
+        }
 
-    public static ContentBlockParam ToContentParam(ContentBlock block) => block switch
+        return new MessageParam
+        {
+            Role = message.Role == MessageRole.User ? Role.User : Role.Assistant,
+            Content = content,
+        };
+    }
+
+    // The moving conversation breakpoint only lands on cacheable block kinds (text and
+    // tool_result — the shapes a request's final message actually ends with).
+    public static ContentBlockParam ToContentParam(ContentBlock block, bool cache = false) => block switch
     {
-        TextBlock text => new TextBlockParam { Text = text.Text },
+        TextBlock text => new TextBlockParam
+        {
+            Text = text.Text,
+            CacheControl = cache ? new CacheControlEphemeral() : null,
+        },
         ThinkingBlock thinking => new ThinkingBlockParam
         {
             Thinking = thinking.Thinking,
@@ -106,14 +161,15 @@ internal static class AnthropicMapper
             Name = toolUse.Name,
             Input = ToInputDictionary(toolUse.Input),
         },
-        _ => ToToolResultParam((ToolResultBlock)block),
+        _ => ToToolResultParam((ToolResultBlock)block, cache),
     };
 
-    private static ToolResultBlockParam ToToolResultParam(ToolResultBlock result) => new()
+    private static ToolResultBlockParam ToToolResultParam(ToolResultBlock result, bool cache) => new()
     {
         ToolUseID = result.ToolUseId,
         Content = result.Content,
         IsError = result.IsError,
+        CacheControl = cache ? new CacheControlEphemeral() : null,
     };
 
     internal static Dictionary<string, JsonElement> ToInputDictionary(JsonElement input)

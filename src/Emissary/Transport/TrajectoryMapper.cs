@@ -19,13 +19,17 @@ internal static class TrajectoryMapper
         [.. response.Content],
         response.StopReason,
         response.InputTokens,
-        response.OutputTokens);
+        response.OutputTokens,
+        response.CacheCreationInputTokens,
+        response.CacheReadInputTokens);
 
     public static ModelResponse ToModelResponse(TrajectoryResponse response) => new(
         [.. response.Content],
         response.StopReason,
         response.InputTokens,
-        response.OutputTokens);
+        response.OutputTokens,
+        response.CacheCreationInputTokens,
+        response.CacheReadInputTokens);
 
     /// <summary>Synthesizes the delta events a live stream would have produced for a response.</summary>
     public static IEnumerable<StreamEvent> SynthesizeEvents(ModelResponse response)

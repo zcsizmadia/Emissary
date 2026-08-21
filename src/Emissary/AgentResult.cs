@@ -14,12 +14,21 @@ public enum AgentStopReason
 
     /// <summary>The run hit <see cref="AgentOptions.MaxTurns"/> before converging.</summary>
     TurnLimit,
+
+    /// <summary>The run hit <see cref="AgentOptions.TokenBudget"/>.</summary>
+    BudgetExceeded,
 }
 
 /// <summary>Token usage accumulated across all turns of a run.</summary>
-/// <param name="InputTokens">Total input tokens.</param>
+/// <param name="InputTokens">Total input tokens (cache reads and writes counted separately).</param>
 /// <param name="OutputTokens">Total output tokens.</param>
-public sealed record AgentUsage(long InputTokens, long OutputTokens)
+/// <param name="CacheCreationInputTokens">Input tokens written to the prompt cache.</param>
+/// <param name="CacheReadInputTokens">Input tokens served from the prompt cache.</param>
+public sealed record AgentUsage(
+    long InputTokens,
+    long OutputTokens,
+    long CacheCreationInputTokens = 0,
+    long CacheReadInputTokens = 0)
 {
     /// <summary>No usage.</summary>
     public static AgentUsage Zero { get; } = new(0, 0);
@@ -27,8 +36,18 @@ public sealed record AgentUsage(long InputTokens, long OutputTokens)
     /// <summary>Returns this usage plus one turn's tokens.</summary>
     /// <param name="inputTokens">The turn's input tokens.</param>
     /// <param name="outputTokens">The turn's output tokens.</param>
-    public AgentUsage Add(long inputTokens, long outputTokens) =>
-        new(InputTokens + inputTokens, OutputTokens + outputTokens);
+    /// <param name="cacheCreationInputTokens">The turn's cache-write tokens.</param>
+    /// <param name="cacheReadInputTokens">The turn's cache-read tokens.</param>
+    public AgentUsage Add(
+        long inputTokens,
+        long outputTokens,
+        long cacheCreationInputTokens = 0,
+        long cacheReadInputTokens = 0) =>
+        new(
+            InputTokens + inputTokens,
+            OutputTokens + outputTokens,
+            CacheCreationInputTokens + cacheCreationInputTokens,
+            CacheReadInputTokens + cacheReadInputTokens);
 }
 
 /// <summary>The outcome of an agent run.</summary>

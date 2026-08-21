@@ -63,8 +63,12 @@ public sealed record TrajectoryRequest(
 /// <param name="StopReason">The wire stop reason.</param>
 /// <param name="InputTokens">Input tokens for the call.</param>
 /// <param name="OutputTokens">Output tokens for the call.</param>
+/// <param name="CacheCreationInputTokens">Input tokens written to the prompt cache.</param>
+/// <param name="CacheReadInputTokens">Input tokens served from the prompt cache.</param>
 public sealed record TrajectoryResponse(
     IReadOnlyList<ContentBlock> Content,
     string StopReason,
     long InputTokens,
-    long OutputTokens);
+    long OutputTokens,
+    long CacheCreationInputTokens = 0,
+    long CacheReadInputTokens = 0);
