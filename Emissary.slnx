@@ -1,8 +1,10 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/Emissary/Emissary.csproj" />
+    <Project Path="src/Emissary.SourceGenerators/Emissary.SourceGenerators.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Emissary.Tests/Emissary.Tests.csproj" />
+    <Project Path="tests/Emissary.AotProof/Emissary.AotProof.csproj" />
   </Folder>
 </Solution>

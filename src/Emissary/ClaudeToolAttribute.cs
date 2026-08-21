@@ -1,0 +1,24 @@
+namespace Emissary;
+
+/// <summary>
+/// Marks a static method as a Claude tool. The Emissary source generator turns it into a
+/// <see cref="ToolDefinition"/> exposed as a generated <c>{MethodName}Tool</c> property on the
+/// containing type — with a compile-time JSON Schema and a reflection-free dispatcher.
+/// </summary>
+/// <remarks>
+/// The containing type (and any types it is nested in) must be declared <c>partial</c>.
+/// </remarks>
+[AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = false)]
+public sealed class ClaudeToolAttribute : Attribute
+{
+    /// <summary>
+    /// The wire name of the tool. Defaults to the snake_case form of the method name.
+    /// </summary>
+    public string? Name { get; set; }
+
+    /// <summary>
+    /// The tool description shown to the model. A missing description raises diagnostic EMS001 —
+    /// Claude picks tools by their descriptions, so an empty one is almost always a bug.
+    /// </summary>
+    public string? Description { get; set; }
+}
