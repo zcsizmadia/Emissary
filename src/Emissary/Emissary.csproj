@@ -13,4 +13,13 @@
     <InternalsVisibleTo Include="Emissary.Tests" />
   </ItemGroup>
 
+  <!-- The Emissary package carries the source generator as its analyzer: one package gives
+       consumers the runtime AND [ClaudeTool]/[ClaudeSchema] generation. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Emissary.SourceGenerators\Emissary.SourceGenerators.csproj"
+                      ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <None Include="..\Emissary.SourceGenerators\bin\$(Configuration)\netstandard2.0\Emissary.SourceGenerators.dll"
+          Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+  </ItemGroup>
+
 </Project>
