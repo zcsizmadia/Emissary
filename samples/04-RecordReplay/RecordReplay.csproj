@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Emissary.Testing\Emissary.Testing.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="demo.trajectory" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

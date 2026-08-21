@@ -1,0 +1,189 @@
+{
+  "version": 1,
+  "turns": [
+    {
+      "request": {
+        "model": "claude-opus-5",
+        "system": "You are a support agent. Always verify identity before refunding.",
+        "maxTokens": 4096,
+        "thinking": "Adaptive",
+        "messages": [
+          {
+            "role": "User",
+            "content": [
+              {
+                "type": "text",
+                "text": "Please refund my last payment of $19.99. I\u0027m customer C42."
+              }
+            ]
+          }
+        ],
+        "toolNames": [
+          "verify_identity",
+          "refund_payment"
+        ]
+      },
+      "response": {
+        "content": [
+          {
+            "type": "tool_use",
+            "id": "t1",
+            "name": "verify_identity",
+            "input": {
+              "customer_id": "C42"
+            }
+          }
+        ],
+        "stopReason": "tool_use",
+        "inputTokens": 10,
+        "outputTokens": 5
+      }
+    },
+    {
+      "request": {
+        "model": "claude-opus-5",
+        "system": "You are a support agent. Always verify identity before refunding.",
+        "maxTokens": 4096,
+        "thinking": "Adaptive",
+        "messages": [
+          {
+            "role": "User",
+            "content": [
+              {
+                "type": "text",
+                "text": "Please refund my last payment of $19.99. I\u0027m customer C42."
+              }
+            ]
+          },
+          {
+            "role": "Assistant",
+            "content": [
+              {
+                "type": "tool_use",
+                "id": "t1",
+                "name": "verify_identity",
+                "input": {
+                  "customer_id": "C42"
+                }
+              }
+            ]
+          },
+          {
+            "role": "User",
+            "content": [
+              {
+                "type": "tool_result",
+                "toolUseId": "t1",
+                "content": "identity of C42 verified",
+                "isError": false
+              }
+            ]
+          }
+        ],
+        "toolNames": [
+          "verify_identity",
+          "refund_payment"
+        ]
+      },
+      "response": {
+        "content": [
+          {
+            "type": "tool_use",
+            "id": "t2",
+            "name": "refund_payment",
+            "input": {
+              "customer_id": "C42",
+              "amount": 19.99
+            }
+          }
+        ],
+        "stopReason": "tool_use",
+        "inputTokens": 10,
+        "outputTokens": 5
+      }
+    },
+    {
+      "request": {
+        "model": "claude-opus-5",
+        "system": "You are a support agent. Always verify identity before refunding.",
+        "maxTokens": 4096,
+        "thinking": "Adaptive",
+        "messages": [
+          {
+            "role": "User",
+            "content": [
+              {
+                "type": "text",
+                "text": "Please refund my last payment of $19.99. I\u0027m customer C42."
+              }
+            ]
+          },
+          {
+            "role": "Assistant",
+            "content": [
+              {
+                "type": "tool_use",
+                "id": "t1",
+                "name": "verify_identity",
+                "input": {
+                  "customer_id": "C42"
+                }
+              }
+            ]
+          },
+          {
+            "role": "User",
+            "content": [
+              {
+                "type": "tool_result",
+                "toolUseId": "t1",
+                "content": "identity of C42 verified",
+                "isError": false
+              }
+            ]
+          },
+          {
+            "role": "Assistant",
+            "content": [
+              {
+                "type": "tool_use",
+                "id": "t2",
+                "name": "refund_payment",
+                "input": {
+                  "customer_id": "C42",
+                  "amount": 19.99
+                }
+              }
+            ]
+          },
+          {
+            "role": "User",
+            "content": [
+              {
+                "type": "tool_result",
+                "toolUseId": "t2",
+                "content": "refunded 19.99 to C42",
+                "isError": false
+              }
+            ]
+          }
+        ],
+        "toolNames": [
+          "verify_identity",
+          "refund_payment"
+        ]
+      },
+      "response": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Refunded $19.99 to customer C42 after verifying their identity."
+          }
+        ],
+        "stopReason": "end_turn",
+        "inputTokens": 45,
+        "outputTokens": 21
+      }
+    }
+  ]
+}
