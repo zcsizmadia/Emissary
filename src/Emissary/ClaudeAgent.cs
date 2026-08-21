@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Emissary.Transport;
 
@@ -43,6 +44,10 @@ public sealed class ClaudeAgent
         ArgumentNullException.ThrowIfNull(transport);
         ArgumentOutOfRangeException.ThrowIfLessThan(options.MaxTurns, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(options.MaxTokens, 1);
+        if (options.TokenBudget is { } tokenBudget)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(tokenBudget, 1, nameof(options));
+        }
         if (options.Tools.Select(t => t.Name).Distinct(StringComparer.Ordinal).Count() != options.Tools.Count)
         {
             throw new ArgumentException("Tool names must be unique.", nameof(options));
@@ -90,40 +95,64 @@ public sealed class ClaudeAgent
     {
         ArgumentNullException.ThrowIfNull(conversation);
 
+        long startTimestamp = Stopwatch.GetTimestamp();
+        using var runActivity = EmissaryDiagnostics.Source.StartActivity($"invoke_agent {_options.Model}");
+        EmissaryDiagnostics.Tag(runActivity, "gen_ai.operation.name", "invoke_agent");
+        EmissaryDiagnostics.Tag(runActivity, "gen_ai.request.model", _options.Model);
+
         var usage = AgentUsage.Zero;
         var stopReason = AgentStopReason.TurnLimit;
         for (int turn = 0; turn < _options.MaxTurns; turn++)
         {
             ModelResponse? response = null;
             var request = BuildRequest(conversation);
-            await foreach (var streamEvent in _transport.StreamAsync(request, cancellationToken).ConfigureAwait(false))
+            using (var chatActivity = EmissaryDiagnostics.Source.StartActivity($"chat {_options.Model}"))
             {
-                switch (streamEvent)
+                EmissaryDiagnostics.Tag(chatActivity, "gen_ai.operation.name", "chat");
+                EmissaryDiagnostics.Tag(chatActivity, "gen_ai.request.model", _options.Model);
+
+                await foreach (var streamEvent in _transport.StreamAsync(request, cancellationToken).ConfigureAwait(false))
                 {
-                    case StreamTextDelta text:
-                        yield return new AgentTextEvent(text.Text);
-                        break;
-                    case StreamThinkingDelta thinking:
-                        yield return new AgentThinkingEvent(thinking.Text);
-                        break;
-                    case StreamToolUseStart toolUse:
-                        yield return new AgentToolCallEvent(toolUse.Id, toolUse.Name);
-                        break;
-                    default:
-                        response = ((StreamCompleted)streamEvent).Response;
-                        break;
+                    switch (streamEvent)
+                    {
+                        case StreamTextDelta text:
+                            yield return new AgentTextEvent(text.Text);
+                            break;
+                        case StreamThinkingDelta thinking:
+                            yield return new AgentThinkingEvent(thinking.Text);
+                            break;
+                        case StreamToolUseStart toolUse:
+                            yield return new AgentToolCallEvent(toolUse.Id, toolUse.Name);
+                            break;
+                        default:
+                            response = ((StreamCompleted)streamEvent).Response;
+                            break;
+                    }
                 }
+
+                if (response is null)
+                {
+                    throw new InvalidOperationException("The transport stream ended without a StreamCompleted event.");
+                }
+
+                EmissaryDiagnostics.Tag(chatActivity, "gen_ai.usage.input_tokens", response.InputTokens);
+                EmissaryDiagnostics.Tag(chatActivity, "gen_ai.usage.output_tokens", response.OutputTokens);
+                EmissaryDiagnostics.Tag(chatActivity, "gen_ai.response.finish_reasons", new[] { response.StopReason });
             }
 
-            if (response is null)
-            {
-                throw new InvalidOperationException("The transport stream ended without a StreamCompleted event.");
-            }
-
-            usage = usage.Add(response.InputTokens, response.OutputTokens);
+            RecordUsage(response);
+            usage = usage.Add(
+                response.InputTokens, response.OutputTokens,
+                response.CacheCreationInputTokens, response.CacheReadInputTokens);
             var assistant = new Message(MessageRole.Assistant, response.Content);
             conversation = conversation.Append(assistant);
             yield return new AgentTurnEvent(assistant);
+
+            if (_options.TokenBudget is { } budget && usage.InputTokens + usage.OutputTokens >= budget)
+            {
+                stopReason = AgentStopReason.BudgetExceeded;
+                break;
+            }
 
             if (response.StopReason == "tool_use")
             {
@@ -148,7 +177,21 @@ public sealed class ClaudeAgent
             break;
         }
 
+        EmissaryDiagnostics.Tag(runActivity, "emissary.stop_reason", stopReason.ToString());
+        EmissaryDiagnostics.RunDuration.Record(
+            Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
+            new KeyValuePair<string, object?>("gen_ai.request.model", _options.Model));
+
         yield return Complete(conversation, stopReason, usage);
+    }
+
+    private void RecordUsage(ModelResponse response)
+    {
+        var modelTag = new KeyValuePair<string, object?>("gen_ai.request.model", _options.Model);
+        EmissaryDiagnostics.InputTokens.Add(response.InputTokens, modelTag);
+        EmissaryDiagnostics.OutputTokens.Add(response.OutputTokens, modelTag);
+        EmissaryDiagnostics.CacheCreationTokens.Add(response.CacheCreationInputTokens, modelTag);
+        EmissaryDiagnostics.CacheReadTokens.Add(response.CacheReadInputTokens, modelTag);
     }
 
     private static AgentCompletedEvent Complete(Conversation conversation, AgentStopReason stopReason, AgentUsage usage) =>
@@ -161,6 +204,7 @@ public sealed class ClaudeAgent
         _options.Thinking,
         _options.Effort,
         _options.OutputSchemaJson,
+        _options.PromptCaching,
         [.. conversation.Messages],
         [.. _options.Tools]);
 
@@ -179,9 +223,15 @@ public sealed class ClaudeAgent
 
     private async Task<ToolResultBlock> ExecuteToolAsync(ToolUseBlock toolUse, CancellationToken cancellationToken)
     {
+        using var activity = EmissaryDiagnostics.Source.StartActivity($"execute_tool {toolUse.Name}");
+        EmissaryDiagnostics.Tag(activity, "gen_ai.operation.name", "execute_tool");
+        EmissaryDiagnostics.Tag(activity, "gen_ai.tool.name", toolUse.Name);
+        EmissaryDiagnostics.ToolCalls.Add(1, new KeyValuePair<string, object?>("gen_ai.tool.name", toolUse.Name));
+
         var tool = _options.Tools.FirstOrDefault(t => t.Name == toolUse.Name);
         if (tool is null)
         {
+            EmissaryDiagnostics.Fail(activity, "unknown tool");
             return new ToolResultBlock(toolUse.Id, $"Unknown tool '{toolUse.Name}'.", IsError: true);
         }
 
@@ -192,6 +242,7 @@ public sealed class ClaudeAgent
         }
         catch (ToolArgumentException exception)
         {
+            EmissaryDiagnostics.Fail(activity, exception.Message);
             return new ToolResultBlock(toolUse.Id, exception.Message, IsError: true);
         }
     }

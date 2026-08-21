@@ -12,9 +12,10 @@ public sealed class AnthropicMapperTests
         ThinkingMode thinking = ThinkingMode.Adaptive,
         EffortLevel? effort = null,
         string? outputSchemaJson = null,
+        PromptCacheMode caching = PromptCacheMode.None,
         IReadOnlyList<ToolDefinition>? tools = null,
         IReadOnlyList<Emissary.Message>? messages = null) =>
-        new("claude-opus-5", system, 1024, thinking, effort, outputSchemaJson,
+        new("claude-opus-5", system, 1024, thinking, effort, outputSchemaJson, caching,
             messages ?? [Emissary.Message.User("hi")], tools ?? []);
 
     [Test]
