@@ -110,10 +110,14 @@ privileged tool, captured in a replayable trajectory.
 `app.MapEmissaryAgent(...)` SSE endpoint; human-in-the-loop gates including durable multi-day pause
 (state-store abstraction + SQLite provider, resume via webhook); agent-as-MCP-server.
 
-*Status (6a): landed — Emissary.AspNetCore (MapEmissaryAgent SSE + MapEmissaryApprovals webhook),
+*Status: COMPLETE. 6a — Emissary.AspNetCore (MapEmissaryAgent SSE + MapEmissaryApprovals webhook),
 durable suspend/resume in core (AgentOptions.ApprovalRequired → SuspendedRun with serialized guard
-state; ClaudeAgent.ResumeAsync), IAgentStateStore + in-memory provider, sample 07. Remaining (6b):
-agent-as-MCP-server + sample 08, SQLite store provider, AOT container image for the exit criterion.*
+state; ClaudeAgent.ResumeAsync), IAgentStateStore + in-memory provider, sample 07. 6b —
+Emissary.Mcp agent-as-MCP-server + sample 08, Emissary.Sqlite durable state store, and the
+Native AOT Dockerfile for sample 07. Note: the MCP server is a minimal hand-rolled stdio
+implementation (initialize / tools/list / tools/call over newline-delimited JSON-RPC) rather than
+the official ModelContextProtocol SDK — the SDK is preview and reflection-based, which conflicts
+with the AOT guarantee; revisit when it is AOT-ready.*
 
 **Exit:** one sample deploys as an AOT container: HTTP in, SSE out, approval webhook resumes a run.
 
