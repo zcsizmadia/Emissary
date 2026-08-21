@@ -269,6 +269,41 @@ public sealed class GeneratorEmissionTests
     }
 
     [Test]
+    public async Task Safety_attributes_flow_into_the_tool_definition()
+    {
+        var result = await GeneratorHarness.RunClean("""
+            public static partial class Tools
+            {
+                [Emissary.AuthorizeTool("admin")]
+                [Emissary.ClaudeTool(Description = "d", Untrusted = true, Privileged = true)]
+                public static string Danger(string input) => input;
+            }
+            """);
+
+        string source = GeneratorHarness.GeneratedSource(result);
+        await Assert.That(source).Contains("\"admin\",");
+        await Assert.That(source).Contains("true,");
+        await Assert.That(source).Contains("true);");
+    }
+
+    [Test]
+    public async Task Default_safety_metadata_is_emitted_explicitly()
+    {
+        var result = await GeneratorHarness.RunClean("""
+            public static partial class Tools
+            {
+                [Emissary.ClaudeTool(Description = "d", Untrusted = false, Privileged = false)]
+                public static string Safe(string input) => input;
+            }
+            """);
+
+        string source = GeneratorHarness.GeneratedSource(result);
+        await Assert.That(source).Contains("null,");
+        await Assert.That(source).Contains("false,");
+        await Assert.That(source).Contains("false);");
+    }
+
+    [Test]
     public async Task Enum_return_type_emits_to_string_conversion()
     {
         var result = await GeneratorHarness.RunClean("""

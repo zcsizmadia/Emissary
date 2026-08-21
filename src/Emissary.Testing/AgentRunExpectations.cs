@@ -96,6 +96,28 @@ public sealed class AgentRunExpectations
         return this;
     }
 
+    /// <summary>Untrusted tool output must have entered the conversation during the run.</summary>
+    public AgentRunExpectations Tainted()
+    {
+        if (!_result.Tainted)
+        {
+            throw Failure("expected the run to be tainted by untrusted tool output, but it was not.");
+        }
+
+        return this;
+    }
+
+    /// <summary>No untrusted tool output may have entered the conversation during the run.</summary>
+    public AgentRunExpectations NotTainted()
+    {
+        if (_result.Tainted)
+        {
+            throw Failure("expected the run to be untainted, but untrusted tool output entered the conversation.");
+        }
+
+        return this;
+    }
+
     /// <summary>The final assistant text must contain this fragment (ordinal comparison).</summary>
     /// <param name="expected">The expected fragment.</param>
     public AgentRunExpectations FinalTextContains(string expected)

@@ -62,6 +62,12 @@ public sealed class AgentResult
     /// <summary>Token usage summed over all turns.</summary>
     public required AgentUsage Usage { get; init; }
 
+    /// <summary>
+    /// Whether untrusted tool output (a tool marked <see cref="ClaudeToolAttribute.Untrusted"/>)
+    /// entered the conversation during the run.
+    /// </summary>
+    public bool Tainted { get; init; }
+
     /// <summary>The text of the last assistant message, or "" if there is none.</summary>
     public string FinalText =>
         Conversation.Messages.LastOrDefault(m => m.Role == MessageRole.Assistant)?.Text ?? "";

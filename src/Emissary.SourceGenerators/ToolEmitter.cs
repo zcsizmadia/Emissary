@@ -51,7 +51,10 @@ internal static class ToolEmitter
         builder.Append("    ").Append(Literal(model.ToolName)).AppendLine(",");
         builder.Append("    ").Append(Literal(model.Description)).AppendLine(",");
         builder.Append("    ").Append(Literal(BuildSchema(model))).AppendLine(",");
-        builder.Append("    __EmissaryInvoke_").Append(model.MethodName).AppendLine(");");
+        builder.Append("    __EmissaryInvoke_").Append(model.MethodName).AppendLine(",");
+        builder.Append("    ").Append(model.RequiredPolicy is null ? "null" : Literal(model.RequiredPolicy)).AppendLine(",");
+        builder.Append("    ").Append(model.Untrusted ? "true" : "false").AppendLine(",");
+        builder.Append("    ").Append(model.Privileged ? "true" : "false").AppendLine(");");
         builder.AppendLine();
     }
 

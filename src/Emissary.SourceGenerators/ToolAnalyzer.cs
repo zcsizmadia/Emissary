@@ -81,14 +81,28 @@ internal sealed class ToolAnalyzer
         string? description = null;
         foreach (var argument in _attribute.NamedArguments)
         {
-            // ClaudeToolAttribute has exactly two settable properties.
-            if (argument.Key == "Name")
+            switch (argument.Key)
             {
-                name = argument.Value.Value as string;
+                case "Name":
+                    name = argument.Value.Value as string;
+                    break;
+                case "Untrusted":
+                    _model.Untrusted = Equals(argument.Value.Value, true);
+                    break;
+                case "Privileged":
+                    _model.Privileged = Equals(argument.Value.Value, true);
+                    break;
+                default:
+                    description = argument.Value.Value as string;
+                    break;
             }
-            else
+        }
+
+        foreach (var attribute in _method.GetAttributes())
+        {
+            if (attribute.AttributeClass?.ToDisplayString() == "Emissary.AuthorizeToolAttribute")
             {
-                description = argument.Value.Value as string;
+                _model.RequiredPolicy = attribute.ConstructorArguments[0].Value as string;
             }
         }
 

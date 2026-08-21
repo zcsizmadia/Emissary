@@ -68,6 +68,15 @@ public sealed class AgentOptions
     /// <summary>The tools available to the agent, typically generated <c>{Method}Tool</c> properties.</summary>
     public IList<ToolDefinition> Tools { get; } = [];
 
+    /// <summary>Declarative tool-call contracts, enforced at runtime (see <see cref="ToolRules"/>).</summary>
+    public ToolRules Rules { get; } = new();
+
+    /// <summary>
+    /// Decides which policy-gated tools ([AuthorizeTool]) the caller may use. Unauthorized tools
+    /// are removed before prompt construction. With no authorizer, policy-gated tools are denied.
+    /// </summary>
+    public IToolAuthorizer? Authorizer { get; set; }
+
     /// <summary>Extended thinking configuration.</summary>
     public ThinkingMode Thinking { get; set; } = ThinkingMode.Adaptive;
 
