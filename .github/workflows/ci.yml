@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore Emissary.slnx
+
+      - name: Build (warnings are errors)
+        run: dotnet build Emissary.slnx --configuration Release --no-restore
+
+      - name: Test with coverage
+        run: >
+          dotnet test --solution Emissary.slnx --configuration Release --no-build
+          -- --coverage --coverage-output-format cobertura --coverage-output coverage.cobertura.xml
+
+      - name: Coverage report
+        run: |
+          dotnet tool restore
+          dotnet reportgenerator \
+            -reports:"TestResults/coverage.cobertura.xml" \
+            -targetdir:coverage-report \
+            "-reporttypes:Html;JsonSummary;TextSummary;MarkdownSummaryGithub" \
+            "-assemblyfilters:+Emissary*;-*.Tests"
+          cat coverage-report/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Enforce 100% coverage gate
+        shell: pwsh
+        run: ./build/check-coverage.ps1
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage-report

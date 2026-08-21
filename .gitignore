@@ -1,0 +1,19 @@
+# Build outputs
+bin/
+obj/
+artifacts/
+
+# IDE
+.vs/
+.idea/
+*.user
+*.suo
+
+# Test & coverage outputs
+TestResults/
+coverage-report/
+*.cobertura.xml
+
+# NuGet
+*.nupkg
+*.snupkg

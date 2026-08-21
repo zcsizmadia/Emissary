@@ -1,0 +1,16 @@
+<Project>
+
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)..'))" />
+
+  <!-- Shipped libraries: AOT-compatible, documented, packable. -->
+  <PropertyGroup>
+    <IsAotCompatible>true</IsAotCompatible>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsPackable>true</IsPackable>
+    <Authors>Emissary Contributors</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Description>Production-grade Claude agents for .NET — AOT-compiled, zero-trust, observable.</Description>
+    <PackageTags>claude;anthropic;agents;ai;aot</PackageTags>
+  </PropertyGroup>
+
+</Project>
