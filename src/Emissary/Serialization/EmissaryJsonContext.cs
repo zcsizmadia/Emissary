@@ -8,4 +8,5 @@ namespace Emissary.Serialization;
     WriteIndented = true,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(Trajectory))]
+[JsonSerializable(typeof(SuspendedRun))]
 internal sealed partial class EmissaryJsonContext : JsonSerializerContext;

@@ -20,6 +20,32 @@ internal sealed class ToolCallGuard
 
     public string? TaintSource { get; private set; }
 
+    /// <summary>Captures the guard's state for durable suspension.</summary>
+    public GuardSnapshot Snapshot() => new(
+        [.. _succeeded],
+        new Dictionary<string, int>(_attempts, StringComparer.Ordinal),
+        _terminatedBy,
+        Tainted,
+        TaintSource);
+
+    /// <summary>Rebuilds a guard from a snapshot taken by <see cref="Snapshot"/>.</summary>
+    public static ToolCallGuard Restore(ToolRules rules, GuardSnapshot snapshot)
+    {
+        var guard = new ToolCallGuard(rules)
+        {
+            _terminatedBy = snapshot.TerminatedBy,
+            Tainted = snapshot.Tainted,
+            TaintSource = snapshot.TaintSource,
+        };
+        guard._succeeded.UnionWith(snapshot.Succeeded);
+        foreach (var (tool, attempts) in snapshot.Attempts)
+        {
+            guard._attempts[tool] = attempts;
+        }
+
+        return guard;
+    }
+
     /// <summary>Returns the violation message, or <see langword="null"/> when the call may run.</summary>
     public string? Check(ToolDefinition tool)
     {

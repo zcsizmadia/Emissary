@@ -97,6 +97,14 @@ public sealed class AgentOptions
     /// <summary>How tool effects execute; <see cref="ExecutionMode.Shadow"/> intercepts privileged tools.</summary>
     public ExecutionMode Mode { get; set; } = ExecutionMode.Live;
 
+    /// <summary>
+    /// Human-in-the-loop gate: when set (and <see cref="Mode"/> is live), a tool call for which
+    /// this returns <see langword="true"/> suspends the run durably instead of executing —
+    /// the result carries a <see cref="SuspendedRun"/> to persist and later resume with
+    /// <see cref="ClaudeAgent.ResumeAsync"/>.
+    /// </summary>
+    public Func<ToolDefinition, bool>? ApprovalRequired { get; set; }
+
     /// <summary>Prompt-cache management; automatic breakpoints by default.</summary>
     public PromptCacheMode PromptCaching { get; set; } = PromptCacheMode.Automatic;
 

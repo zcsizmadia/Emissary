@@ -96,21 +96,100 @@ public sealed class ClaudeAgent
     /// <summary>Runs the agent on an existing conversation, streaming events as they happen.</summary>
     /// <param name="conversation">The conversation so far; the last message must be from the user.</param>
     /// <param name="cancellationToken">Cancels the run.</param>
-    public async IAsyncEnumerable<AgentEvent> StreamAsync(
+    public IAsyncEnumerable<AgentEvent> StreamAsync(
         Conversation conversation,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(conversation);
+        return RunLoopAsync(conversation, AgentUsage.Zero, new ToolCallGuard(_options.Rules), [], cancellationToken);
+    }
 
+    /// <summary>Resumes a suspended run with a human decision and returns the outcome.</summary>
+    /// <param name="run">The suspension state (from <see cref="AgentResult.Suspension"/> or a store).</param>
+    /// <param name="approve">Whether the gated calls may execute; denial informs the model instead.</param>
+    /// <param name="cancellationToken">Cancels the run.</param>
+    public async Task<AgentResult> ResumeAsync(SuspendedRun run, bool approve, CancellationToken cancellationToken = default)
+    {
+        AgentResult? result = null;
+        await foreach (var agentEvent in ResumeStreamAsync(run, approve, cancellationToken).ConfigureAwait(false))
+        {
+            if (agentEvent is AgentCompletedEvent completed)
+            {
+                result = completed.Result;
+            }
+        }
+
+        return result!;
+    }
+
+    /// <summary>Resumes a suspended run with a human decision, streaming events as they happen.</summary>
+    /// <param name="run">The suspension state (from <see cref="AgentResult.Suspension"/> or a store).</param>
+    /// <param name="approve">Whether the gated calls may execute; denial informs the model instead.</param>
+    /// <param name="cancellationToken">Cancels the run.</param>
+    public async IAsyncEnumerable<AgentEvent> ResumeStreamAsync(
+        SuspendedRun run,
+        bool approve,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+
+        var conversation = Conversation.Restore(new ConversationId(run.ConversationId), run.Messages);
+        var guard = ToolCallGuard.Restore(_options.Rules, run.Guard);
+        var resultsById = run.CompletedResults.ToDictionary(r => r.ToolUseId, StringComparer.Ordinal);
+
+        foreach (var pendingCall in run.PendingApprovals)
+        {
+            ToolResultBlock result;
+            if (approve)
+            {
+                var tool = Array.Find(_activeTools, t => t.Name == pendingCall.ToolName);
+                var toolUse = new ToolUseBlock(pendingCall.ToolUseId, pendingCall.ToolName, pendingCall.Input);
+                result = await ExecuteToolAsync(tool, violation: null, shadow: false, toolUse, cancellationToken)
+                    .ConfigureAwait(false);
+                if (tool is not null)
+                {
+                    guard.Record(tool, !result.IsError);
+                }
+            }
+            else
+            {
+                result = new ToolResultBlock(
+                    pendingCall.ToolUseId,
+                    $"Denied: a human reviewer rejected the call to '{pendingCall.ToolName}'.",
+                    IsError: true);
+            }
+
+            resultsById[pendingCall.ToolUseId] = result;
+            yield return new AgentToolResultEvent(pendingCall.ToolUseId, pendingCall.ToolName, result.Content, result.IsError);
+        }
+
+        // Tool results must be ordered like the assistant's tool_use blocks.
+        var ordered = conversation.Messages[^1].Content
+            .OfType<ToolUseBlock>()
+            .Select(use => (ContentBlock)resultsById[use.Id]);
+        conversation = conversation.Append(new Message(MessageRole.User, [.. ordered]));
+
+        await foreach (var agentEvent in RunLoopAsync(
+            conversation, run.Usage, guard, [.. run.PlannedEffects], cancellationToken).ConfigureAwait(false))
+        {
+            yield return agentEvent;
+        }
+    }
+
+    private async IAsyncEnumerable<AgentEvent> RunLoopAsync(
+        Conversation conversation,
+        AgentUsage usage,
+        ToolCallGuard guard,
+        List<PlannedEffect> plannedEffects,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
         long startTimestamp = Stopwatch.GetTimestamp();
         using var runActivity = EmissaryDiagnostics.Source.StartActivity($"invoke_agent {_options.Model}");
         EmissaryDiagnostics.Tag(runActivity, "gen_ai.operation.name", "invoke_agent");
         EmissaryDiagnostics.Tag(runActivity, "gen_ai.request.model", _options.Model);
 
-        var usage = AgentUsage.Zero;
         var stopReason = AgentStopReason.TurnLimit;
-        var guard = new ToolCallGuard(_options.Rules);
-        var plannedEffects = new List<PlannedEffect>();
+        SuspendedRun? suspension = null;
         for (int turn = 0; turn < _options.MaxTurns; turn++)
         {
             ModelResponse? response = null;
@@ -166,14 +245,32 @@ public sealed class ClaudeAgent
             if (response.StopReason == "tool_use")
             {
                 var toolUses = response.Content.OfType<ToolUseBlock>().ToArray();
-                var results = await ExecuteToolsAsync(toolUses, guard, plannedEffects, cancellationToken).ConfigureAwait(false);
+                var (results, pending) = await ExecuteToolsAsync(toolUses, guard, plannedEffects, cancellationToken).ConfigureAwait(false);
                 for (int i = 0; i < results.Length; i++)
                 {
-                    yield return new AgentToolResultEvent(
-                        results[i].ToolUseId, toolUses[i].Name, results[i].Content, results[i].IsError);
+                    if (results[i] is { } executed)
+                    {
+                        yield return new AgentToolResultEvent(
+                            executed.ToolUseId, toolUses[i].Name, executed.Content, executed.IsError);
+                    }
                 }
 
-                conversation = conversation.Append(new Message(MessageRole.User, [.. results]));
+                if (pending.Count > 0)
+                {
+                    suspension = new SuspendedRun(
+                        conversation.Id.Value,
+                        [.. conversation.Messages],
+                        usage,
+                        [.. results.OfType<ToolResultBlock>()],
+                        pending,
+                        guard.Snapshot(),
+                        [.. plannedEffects]);
+                    yield return new AgentSuspendedEvent(suspension);
+                    stopReason = AgentStopReason.AwaitingApproval;
+                    break;
+                }
+
+                conversation = conversation.Append(new Message(MessageRole.User, [.. results.OfType<ToolResultBlock>()]));
                 continue;
             }
 
@@ -198,6 +295,7 @@ public sealed class ClaudeAgent
             Usage = usage,
             Tainted = guard.Tainted,
             PlannedEffects = plannedEffects,
+            Suspension = suspension,
         });
     }
 
@@ -278,7 +376,7 @@ public sealed class ClaudeAgent
         [.. conversation.Messages],
         _activeTools);
 
-    private async Task<ToolResultBlock[]> ExecuteToolsAsync(
+    private async Task<(ToolResultBlock?[] Results, List<PlannedEffect> Pending)> ExecuteToolsAsync(
         ToolUseBlock[] toolUses,
         ToolCallGuard guard,
         List<PlannedEffect> plannedEffects,
@@ -286,12 +384,24 @@ public sealed class ClaudeAgent
     {
         // Guard checks run sequentially in tool-use order (state frozen for the batch);
         // permitted calls then execute in parallel; outcomes are recorded in order.
+        // Approval-gated calls get no result — they suspend the run instead.
+        var pending = new List<PlannedEffect>();
         var tools = new ToolDefinition?[toolUses.Length];
-        var tasks = new Task<ToolResultBlock>[toolUses.Length];
+        var tasks = new Task<ToolResultBlock>?[toolUses.Length];
         for (int i = 0; i < toolUses.Length; i++)
         {
             tools[i] = Array.Find(_activeTools, t => t.Name == toolUses[i].Name);
             string? violation = tools[i] is { } tool ? guard.Check(tool) : null;
+
+            if (violation is null
+                && tools[i] is { } gated
+                && _options.Mode == ExecutionMode.Live
+                && _options.ApprovalRequired?.Invoke(gated) == true)
+            {
+                pending.Add(new PlannedEffect(toolUses[i].Name, toolUses[i].Id, toolUses[i].Input));
+                continue;
+            }
+
             bool shadow = violation is null
                 && tools[i] is { Privileged: true }
                 && _options.Mode == ExecutionMode.Shadow;
@@ -303,16 +413,20 @@ public sealed class ClaudeAgent
             tasks[i] = ExecuteToolAsync(tools[i], violation, shadow, toolUses[i], cancellationToken);
         }
 
-        var results = await Task.WhenAll(tasks).ConfigureAwait(false);
-        for (int i = 0; i < results.Length; i++)
+        var results = new ToolResultBlock?[toolUses.Length];
+        for (int i = 0; i < tasks.Length; i++)
         {
-            if (tools[i] is { } tool)
+            if (tasks[i] is { } task)
             {
-                guard.Record(tool, !results[i].IsError);
+                results[i] = await task.ConfigureAwait(false);
+                if (tools[i] is { } tool)
+                {
+                    guard.Record(tool, !results[i]!.IsError);
+                }
             }
         }
 
-        return results;
+        return (results, pending);
     }
 
     private static async Task<ToolResultBlock> ExecuteToolAsync(
