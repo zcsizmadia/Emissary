@@ -2,7 +2,9 @@ using Emissary;
 
 var agent = new ClaudeAgent(new AgentOptions
 {
-    SystemPrompt = "You are a concise assistant. Use tools when they help.",
+    SystemPrompt =
+        "You are a concise assistant. You cannot roll dice or read the clock yourself — always " +
+        "use the provided tools for those, then report the actual results they return.",
     Tools = { HelloTools.RollDiceTool, HelloTools.GetTimeTool },
 });
 
@@ -10,11 +12,32 @@ string question = args.Length > 0 ? string.Join(' ', args) : "Roll 3 six-sided d
 Console.WriteLine($"> {question}");
 Console.WriteLine();
 
-var result = await agent.RunAsync(question);
+// Stream the run so the tool calls are visible — the whole point of the sample.
+AgentResult? result = null;
+await foreach (var agentEvent in agent.StreamAsync(question))
+{
+    switch (agentEvent)
+    {
+        case AgentToolCallEvent call:
+            Console.WriteLine($"[tool] {call.Name}");
+            break;
+        case AgentToolResultEvent toolResult:
+            Console.WriteLine($"       -> {toolResult.Result}");
+            break;
+        case AgentTextEvent text:
+            Console.Write(text.Delta);
+            break;
+        case AgentCompletedEvent completed:
+            result = completed.Result;
+            break;
+        default:
+            break;
+    }
+}
 
-Console.WriteLine(result.FinalText);
 Console.WriteLine();
-Console.WriteLine($"[{result.StopReason}; {result.Usage.InputTokens} in / {result.Usage.OutputTokens} out]");
+Console.WriteLine();
+Console.WriteLine($"[{result!.StopReason}; {result.Usage.InputTokens} in / {result.Usage.OutputTokens} out]");
 return 0;
 
 internal static partial class HelloTools

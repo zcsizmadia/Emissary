@@ -141,6 +141,22 @@ public sealed class AnthropicMapperTests
     }
 
     [Test]
+    [Arguments("ToolUse", "tool_use")]
+    [Arguments("tool_use", "tool_use")]
+    [Arguments("MaxTokens", "max_tokens")]
+    [Arguments("max_tokens", "max_tokens")]
+    [Arguments("Refusal", "refusal")]
+    [Arguments("EndTurn", "end_turn")]
+    [Arguments("end_turn", "end_turn")]
+    [Arguments("StopSequence", "end_turn")]
+    [Arguments("PauseTurn", "end_turn")]
+    [Arguments("something_new", "end_turn")]
+    public async Task NormalizeStopReason_maps_pascal_and_wire_forms(string raw, string expected)
+    {
+        await Assert.That(AnthropicMapper.NormalizeStopReason(raw)).IsEqualTo(expected);
+    }
+
+    [Test]
     public async Task Tool_input_dictionary_preserves_values()
     {
         using var document = JsonDocument.Parse("""{"a":1,"b":"two"}""");

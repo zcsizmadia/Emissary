@@ -79,7 +79,17 @@ EmissaryAssert.That(result)
 ```
 
 Golden trajectories run in CI as regression suites — Emissary's own test suite is the first
-customer.
+customer. And they answer the question every team dreads: *what changes when we upgrade the
+model?* Point a candidate agent at a recorded baseline and get a behavioral diff:
+
+```csharp
+var report = await TrajectoryCanary.RunAsync(baseline, candidateAgent);
+// Result: BEHAVIOR CHANGED
+//   [tool_sequence] baseline [verify_identity -> refund_payment], candidate [refund_payment]
+```
+
+`Passed` tolerates wording drift; a changed tool sequence, turn count, or stop reason fails the
+canary. Model upgrades become a managed rollout instead of a leap of faith.
 
 **🚀 Production plumbing included.**
 
@@ -98,7 +108,9 @@ customer.
 **📐 An engineering bar you can audit.** 100% line and branch coverage enforced by CI (with a
 public, per-line justified baseline for compiler artifacts — currently six entries), the AOT
 proof executed on every commit, every sample compiled on every commit, and architecture
-decisions recorded as [ADRs](docs/adr).
+decisions recorded as [ADRs](docs/adr). The performance claims are
+[measured, not asserted](docs/benchmarks.md): ~153 ns per tool dispatch, ~4 µs per replayed
+agent run, 1.53 MB AOT binary with a ~44 ms process lifetime.
 
 ## Quick start
 
