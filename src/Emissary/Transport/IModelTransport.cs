@@ -22,7 +22,8 @@ internal sealed record ModelRequest(
     string? OutputSchemaJson,
     PromptCacheMode PromptCaching,
     IReadOnlyList<Message> Messages,
-    IReadOnlyList<ToolDefinition> Tools);
+    IReadOnlyList<ToolDefinition> Tools,
+    WebSearchOptions? WebSearch = null);
 
 /// <summary>One fully assembled model response.</summary>
 internal sealed record ModelResponse(

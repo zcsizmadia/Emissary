@@ -23,6 +23,12 @@ internal static class AnthropicMapper
             }
         }
 
+        if (request.WebSearch is { } webSearch)
+        {
+            tools ??= [];
+            tools.Add(new ToolUnion(ToWebSearchTool(webSearch)));
+        }
+
         var messages = new List<MessageParam>(request.Messages.Count);
         for (int i = 0; i < request.Messages.Count; i++)
         {
@@ -90,6 +96,13 @@ internal static class AnthropicMapper
 
         return schema;
     }
+
+    internal static WebSearchTool20260318 ToWebSearchTool(WebSearchOptions options) => new()
+    {
+        MaxUses = options.MaxUses,
+        AllowedDomains = options.AllowedDomains.Count > 0 ? [.. options.AllowedDomains] : null,
+        BlockedDomains = options.BlockedDomains.Count > 0 ? [.. options.BlockedDomains] : null,
+    };
 
     public static Tool ToTool(ToolDefinition tool, bool cache = false)
     {

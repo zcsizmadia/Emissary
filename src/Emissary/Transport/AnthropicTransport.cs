@@ -75,23 +75,26 @@ internal sealed class AnthropicTransport : IModelTransport
             else if (streamEvent.TryPickContentBlockDelta(out var blockDelta))
             {
                 int index = (int)blockDelta.Index;
-                if (blockDelta.Delta.TryPickText(out var text))
+
+                // Guard every lookup: server-side tools (web search, code execution) stream blocks
+                // whose ContentBlockStart we don't register, so their deltas must be ignored, not crash.
+                if (blockDelta.Delta.TryPickText(out var text) && textParts.TryGetValue(index, out var textPart))
                 {
-                    textParts[index].Append(text.Text);
+                    textPart.Append(text.Text);
                     yield return new StreamTextDelta(text.Text);
                 }
-                else if (blockDelta.Delta.TryPickThinking(out var thinking))
+                else if (blockDelta.Delta.TryPickThinking(out var thinking) && thinkingParts.TryGetValue(index, out var thinkingDelta))
                 {
-                    thinkingParts[index].Text.Append(thinking.Thinking);
+                    thinkingDelta.Text.Append(thinking.Thinking);
                     yield return new StreamThinkingDelta(thinking.Thinking);
                 }
-                else if (blockDelta.Delta.TryPickSignature(out var signature))
+                else if (blockDelta.Delta.TryPickSignature(out var signature) && thinkingParts.TryGetValue(index, out var signatureDelta))
                 {
-                    thinkingParts[index].Signature.Append(signature.Signature);
+                    signatureDelta.Signature.Append(signature.Signature);
                 }
-                else if (blockDelta.Delta.TryPickInputJson(out var inputJson))
+                else if (blockDelta.Delta.TryPickInputJson(out var inputJson) && toolParts.TryGetValue(index, out var toolPart))
                 {
-                    toolParts[index].Json.Append(inputJson.PartialJson);
+                    toolPart.Json.Append(inputJson.PartialJson);
                 }
             }
             else if (streamEvent.TryPickContentBlockStop(out var blockStop))

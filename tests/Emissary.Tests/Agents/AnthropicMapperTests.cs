@@ -157,6 +157,50 @@ public sealed class AnthropicMapperTests
     }
 
     [Test]
+    public async Task Web_search_adds_a_server_tool_to_the_request()
+    {
+        var ws = new WebSearchOptions { MaxUses = 3 };
+        ws.AllowedDomains.Add("docs.claude.com");
+        var request = Request(tools: [SampleTools.EchoTool]) with { WebSearch = ws };
+
+        var parameters = AnthropicMapper.ToCreateParams(request);
+
+        await Assert.That(parameters.Tools!.Count).IsEqualTo(2);
+        await Assert.That(parameters.Tools!.Any(t => t.Value is WebSearchTool20260318)).IsTrue();
+    }
+
+    [Test]
+    public async Task Web_search_is_the_only_tool_when_no_client_tools()
+    {
+        var request = Request() with { WebSearch = new WebSearchOptions() };
+
+        var parameters = AnthropicMapper.ToCreateParams(request);
+
+        await Assert.That(parameters.Tools!.Single().Value).IsTypeOf<WebSearchTool20260318>();
+    }
+
+    [Test]
+    public async Task Web_search_tool_maps_domain_and_use_limits()
+    {
+        var ws = new WebSearchOptions { MaxUses = 5 };
+        ws.BlockedDomains.Add("evil.example");
+
+        var tool = AnthropicMapper.ToWebSearchTool(ws);
+
+        await Assert.That(tool.MaxUses).IsEqualTo(5);
+        await Assert.That(tool.BlockedDomains!).Contains("evil.example");
+        await Assert.That(tool.AllowedDomains).IsNull();
+    }
+
+    [Test]
+    public async Task No_web_search_leaves_tools_untouched()
+    {
+        var parameters = AnthropicMapper.ToCreateParams(Request());
+
+        await Assert.That(parameters.Tools).IsNull();
+    }
+
+    [Test]
     public async Task Tool_input_dictionary_preserves_values()
     {
         using var document = JsonDocument.Parse("""{"a":1,"b":"two"}""");

@@ -142,4 +142,10 @@ public sealed class AgentOptions
 
     /// <summary>Retry, backoff, and timeout behavior for transient API failures.</summary>
     public ResilienceOptions Resilience { get; } = new();
+
+    /// <summary>
+    /// When set, enables Claude's server-side web search for the run. See
+    /// <see cref="WebSearchOptions"/> for the taint-tracking caveat.
+    /// </summary>
+    public WebSearchOptions? WebSearch { get; set; }
 }
