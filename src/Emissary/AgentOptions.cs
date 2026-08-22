@@ -144,6 +144,12 @@ public sealed class AgentOptions
     public ResilienceOptions Resilience { get; } = new();
 
     /// <summary>
+    /// Client-side context compaction, so long conversations survive past the context window.
+    /// Disabled until <see cref="CompactionOptions.TriggerInputTokens"/> is set.
+    /// </summary>
+    public CompactionOptions Compaction { get; } = new();
+
+    /// <summary>
     /// When set, enables Claude's server-side web search for the run. See
     /// <see cref="WebSearchOptions"/> for the taint-tracking caveat.
     /// </summary>

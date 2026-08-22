@@ -34,6 +34,14 @@ public sealed record AgentTurnEvent(Message Assistant) : AgentEvent;
 /// <param name="Suspension">The serializable suspension state.</param>
 public sealed record AgentSuspendedEvent(SuspendedRun Suspension) : AgentEvent;
 
+/// <summary>
+/// Older messages were summarized to keep the conversation inside the context window
+/// (see <see cref="CompactionOptions"/>).
+/// </summary>
+/// <param name="MessagesSummarized">How many messages the summary replaced.</param>
+/// <param name="Summary">The summary that replaced them.</param>
+public sealed record AgentCompactedEvent(int MessagesSummarized, string Summary) : AgentEvent;
+
 /// <summary>The run ended. Always the final event of a stream.</summary>
 /// <param name="Result">The run outcome.</param>
 public sealed record AgentCompletedEvent(AgentResult Result) : AgentEvent;

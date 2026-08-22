@@ -255,8 +255,20 @@ public sealed class ClaudeAgent
 
         var stopReason = AgentStopReason.TurnLimit;
         SuspendedRun? suspension = null;
+        bool compactBeforeNextCall = false;
         for (int turn = 0; turn < _options.MaxTurns; turn++)
         {
+            if (compactBeforeNextCall)
+            {
+                compactBeforeNextCall = false;
+                var compaction = await CompactAsync(conversation, cancellationToken).ConfigureAwait(false);
+                if (compaction is { } compacted)
+                {
+                    conversation = compacted.Conversation;
+                    yield return new AgentCompactedEvent(compacted.MessagesSummarized, compacted.Summary);
+                }
+            }
+
             ModelResponse? response = null;
             var request = BuildRequest(conversation);
             using (var chatActivity = EmissaryDiagnostics.Source.StartActivity($"chat {_options.Model}"))
@@ -297,6 +309,12 @@ public sealed class ClaudeAgent
             usage = usage.Add(
                 response.InputTokens, response.OutputTokens,
                 response.CacheCreationInputTokens, response.CacheReadInputTokens);
+
+            if (_options.Compaction.TriggerInputTokens is { } trigger
+                && response.InputTokens + response.CacheReadInputTokens > trigger)
+            {
+                compactBeforeNextCall = true;
+            }
             var assistant = new Message(MessageRole.Assistant, response.Content);
             conversation = conversation.Append(assistant);
             yield return new AgentTurnEvent(assistant);
@@ -419,6 +437,50 @@ public sealed class ClaudeAgent
         }
 
         return report;
+    }
+
+    /// <summary>
+    /// Summarizes the older part of the conversation with one extra model call and returns the
+    /// compacted conversation, or <see langword="null"/> when there is nothing safe to compact.
+    /// </summary>
+    private async Task<(Conversation Conversation, int MessagesSummarized, string Summary)?> CompactAsync(
+        Conversation conversation,
+        CancellationToken cancellationToken)
+    {
+        if (ConversationCompactor.TryFindCutIndex(conversation.Messages, _options.Compaction.KeepRecentMessages)
+            is not { } cutIndex)
+        {
+            return null;
+        }
+
+        using var activity = EmissaryDiagnostics.Source.StartActivity("compact_context");
+        EmissaryDiagnostics.Tag(activity, "emissary.compaction.messages", cutIndex);
+
+        string prompt = ConversationCompactor.BuildSummaryPrompt(
+            conversation.Messages, cutIndex, _options.Compaction.SummaryInstruction);
+
+        // A tool-free single-shot call: it is recorded in the trajectory like any other turn,
+        // so a compacted run replays deterministically.
+        var request = new ModelRequest(
+            _options.Model, null, _options.MaxTokens, ThinkingMode.Disabled, _options.Effort,
+            null, PromptCacheMode.None, [Message.User(prompt)], []);
+
+        ModelResponse? response = null;
+        await foreach (var streamEvent in _transport.StreamAsync(request, cancellationToken).ConfigureAwait(false))
+        {
+            if (streamEvent is StreamCompleted completed)
+            {
+                response = completed.Response;
+            }
+        }
+
+        if (response is null)
+        {
+            throw new InvalidOperationException("The transport stream ended without a StreamCompleted event.");
+        }
+
+        string summary = string.Concat(response.Content.OfType<TextBlock>().Select(t => t.Text));
+        return (ConversationCompactor.Apply(conversation, cutIndex, summary), cutIndex, summary);
     }
 
     private void RecordUsage(ModelResponse response)
