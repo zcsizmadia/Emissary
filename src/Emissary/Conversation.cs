@@ -1,6 +1,13 @@
 using System.Collections.Immutable;
+using System.Text.Json;
+using Emissary.Serialization;
 
 namespace Emissary;
+
+/// <summary>The serializable shape of a <see cref="Conversation"/>.</summary>
+/// <param name="Id">The conversation id.</param>
+/// <param name="Messages">The messages, oldest first.</param>
+public sealed record PersistedConversation(Guid Id, IReadOnlyList<Message> Messages);
 
 /// <summary>
 /// An immutable conversation: appending returns a new instance, so any point in an agent run
@@ -38,5 +45,19 @@ public sealed class Conversation
     {
         ArgumentNullException.ThrowIfNull(message);
         return new(Id, Messages.Add(message));
+    }
+
+    /// <summary>Serializes the conversation (id and messages) as JSON.</summary>
+    public string ToJson() =>
+        JsonSerializer.Serialize(new PersistedConversation(Id.Value, Messages), EmissaryJsonContext.Default.PersistedConversation);
+
+    /// <summary>Deserializes a conversation previously produced by <see cref="ToJson"/>.</summary>
+    /// <param name="json">The conversation JSON.</param>
+    /// <exception cref="InvalidOperationException">The JSON is the null literal.</exception>
+    public static Conversation FromJson(string json)
+    {
+        var persisted = JsonSerializer.Deserialize(json, EmissaryJsonContext.Default.PersistedConversation)
+            ?? throw new InvalidOperationException("The conversation JSON deserialized to null.");
+        return Restore(new ConversationId(persisted.Id), persisted.Messages);
     }
 }
