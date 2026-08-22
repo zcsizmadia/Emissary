@@ -10,7 +10,10 @@ namespace Emissary;
 internal static class EmissaryDiagnostics
 {
     private const string Name = "Emissary";
-    private const string Version = "0.1.0";
+
+    // The version stamped by the build (MinVer) — telemetry always reports the real version.
+    private static readonly string Version =
+        typeof(EmissaryDiagnostics).Assembly.GetName().Version!.ToString(3);
 
     public static readonly ActivitySource Source = new(Name, Version);
 
