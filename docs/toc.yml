@@ -1,0 +1,32 @@
+- name: Home
+  href: index.md
+- name: Guides
+  items:
+    - name: Getting started
+      href: guides/getting-started.md
+    - name: Tools and schemas
+      href: guides/tools.md
+    - name: Safety and contracts
+      href: guides/safety.md
+    - name: Testing agents
+      href: guides/testing.md
+    - name: Production
+      href: guides/production.md
+- name: Benchmarks
+  href: benchmarks.md
+- name: Decisions (ADR)
+  items:
+    - name: 0001 Claude-native
+      href: adr/0001-claude-native.md
+    - name: 0002 TUnit + MTP
+      href: adr/0002-tunit-mtp.md
+    - name: 0003 Coverage policy
+      href: adr/0003-coverage-policy.md
+    - name: 0004 net10.0 only
+      href: adr/0004-net10-only.md
+    - name: 0005 Versioning and releases
+      href: adr/0005-versioning-and-releases.md
+    - name: 0006 Client-side compaction
+      href: adr/0006-client-side-compaction.md
+- name: API reference
+  href: api/
