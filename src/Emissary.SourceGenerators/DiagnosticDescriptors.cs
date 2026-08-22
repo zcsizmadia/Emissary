@@ -14,6 +14,22 @@ internal static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
 
+    public static readonly DiagnosticDescriptor MissingParameterDescription = new(
+        id: "EMS003",
+        title: "Tool parameter has no description",
+        messageFormat: "Parameter '{0}' of tool method '{1}' has no description; Claude chooses argument values from parameter descriptions. Add a <param> doc comment.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor SafetyAttributeWithoutTool = new(
+        id: "EMS010",
+        title: "Safety attribute has no effect without [ClaudeTool]",
+        messageFormat: "'{0}' has [AuthorizeTool] but not [ClaudeTool], so the authorization policy is silently ignored. Add [ClaudeTool] or remove [AuthorizeTool].",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
     public static readonly DiagnosticDescriptor UnsupportedParameterType = new(
         id: "EMS002",
         title: "Unsupported tool parameter type",

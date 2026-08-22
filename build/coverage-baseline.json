@@ -35,6 +35,11 @@
       "file": "src/Emissary.SourceGenerators/ToolAnalyzer.cs",
       "lineContains": "Emissary.ClaudeToolAttribute",
       "reason": "Same AttributeData.AttributeClass null-binding artifact as the AuthorizeTool entry."
+    },
+    {
+      "file": "src/Emissary.SourceGenerators/ClaudeToolGenerator.cs",
+      "lineContains": "Emissary.ClaudeToolAttribute",
+      "reason": "Same AttributeData.AttributeClass null-binding artifact (EMS010 pipeline); the null branch is not constructible from valid test source."
     }
   ]
 }

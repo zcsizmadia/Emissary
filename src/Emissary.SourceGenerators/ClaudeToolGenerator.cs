@@ -49,5 +49,30 @@ public sealed class ClaudeToolGenerator : IIncrementalGenerator
                 production.AddSource(model.HintName, SchemaEmitter.Emit(model));
             }
         });
+
+        // EMS010: [AuthorizeTool] on a method that is not a [ClaudeTool] is a silent no-op.
+        var orphanedAuthorizations = context.SyntaxProvider.ForAttributeWithMetadataName(
+            "Emissary.AuthorizeToolAttribute",
+            static (node, _) => node is MethodDeclarationSyntax,
+            static (ctx, _) =>
+            {
+                var method = (IMethodSymbol)ctx.TargetSymbol;
+                bool isTool = method.GetAttributes().Any(a =>
+                    a.AttributeClass?.ToDisplayString() == "Emissary.ClaudeToolAttribute");
+                return isTool
+                    ? null
+                    : Diagnostic.Create(
+                        DiagnosticDescriptors.SafetyAttributeWithoutTool,
+                        ctx.TargetNode.GetLocation(),
+                        method.Name);
+            });
+
+        context.RegisterSourceOutput(orphanedAuthorizations, static (production, diagnostic) =>
+        {
+            if (diagnostic is not null)
+            {
+                production.ReportDiagnostic(diagnostic);
+            }
+        });
     }
 }

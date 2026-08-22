@@ -21,6 +21,69 @@ public sealed class GeneratorDiagnosticsTests
     }
 
     [Test]
+    public async Task EMS003_parameter_without_description_is_an_info()
+    {
+        var result = GeneratorHarness.Run("""
+            public static partial class Tools
+            {
+                [Emissary.ClaudeTool(Description = "d")]
+                public static string Echo(string text) => text;
+            }
+            """, out _);
+
+        var ems003 = result.Diagnostics.Single(d => d.Id == "EMS003");
+        await Assert.That(ems003.Severity).IsEqualTo(Microsoft.CodeAnalysis.DiagnosticSeverity.Info);
+        await Assert.That(ems003.GetMessage(null)).Contains("'text'");
+    }
+
+    [Test]
+    public async Task EMS003_not_raised_when_parameters_are_documented()
+    {
+        var result = GeneratorHarness.Run("""
+            public static partial class Tools
+            {
+                /// <summary>d</summary>
+                /// <param name="text">The text.</param>
+                [Emissary.ClaudeTool]
+                public static string Echo(string text) => text;
+            }
+            """, out _);
+
+        await Assert.That(GeneratorHarness.DiagnosticIds(result)).DoesNotContain("EMS003");
+    }
+
+    [Test]
+    public async Task EMS010_authorize_without_tool_is_a_warning()
+    {
+        var result = GeneratorHarness.Run("""
+            public static partial class Tools
+            {
+                [Emissary.AuthorizeTool("admin")]
+                public static string Orphan(string id) => id;
+            }
+            """, out _);
+
+        var ems010 = result.Diagnostics.Single(d => d.Id == "EMS010");
+        await Assert.That(ems010.Severity).IsEqualTo(Microsoft.CodeAnalysis.DiagnosticSeverity.Warning);
+        await Assert.That(ems010.GetMessage(null)).Contains("Orphan");
+    }
+
+    [Test]
+    public async Task EMS010_not_raised_when_authorize_is_paired_with_tool()
+    {
+        var result = GeneratorHarness.Run("""
+            public static partial class Tools
+            {
+                [Emissary.AuthorizeTool("admin")]
+                [Emissary.ClaudeTool(Description = "d")]
+                public static string DeleteData(string id) => id;
+            }
+            """, out _);
+
+        await Assert.That(GeneratorHarness.DiagnosticIds(result)).DoesNotContain("EMS010");
+    }
+
+    [Test]
     public async Task EMS002_unsupported_parameter_type_is_an_error()
     {
         var result = GeneratorHarness.Run("""
