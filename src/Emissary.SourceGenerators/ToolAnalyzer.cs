@@ -158,6 +158,11 @@ internal sealed class ToolAnalyzer
                 DeclaredTypeFullName = parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             };
 
+            if (!parameterDocs.ContainsKey(parameter.Name))
+            {
+                Report(DiagnosticDescriptors.MissingParameterDescription, parameter.Name, _method.Name);
+            }
+
             if (parameterDocs.TryGetValue(parameter.Name, out string? doc))
             {
                 parameterModel.Description = doc;
