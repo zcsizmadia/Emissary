@@ -11,6 +11,9 @@
     <Project Path="tests/Emissary.Tests/Emissary.Tests.csproj" />
     <Project Path="tests/Emissary.AotProof/Emissary.AotProof.csproj" />
   </Folder>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/Emissary.Benchmarks/Emissary.Benchmarks.csproj" />
+  </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/01-HelloTool/HelloTool.csproj" />
     <Project Path="samples/02-StreamingChat/StreamingChat.csproj" />
