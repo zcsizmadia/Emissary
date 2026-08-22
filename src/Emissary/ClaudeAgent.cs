@@ -18,7 +18,7 @@ public sealed class ClaudeAgent
     /// <summary>Creates an agent talking to the Claude API.</summary>
     /// <param name="options">The agent configuration.</param>
     public ClaudeAgent(AgentOptions options)
-        : this(options, new AnthropicTransport(options?.ApiKey))
+        : this(options, BuildLiveTransport(options))
     {
     }
 
@@ -26,8 +26,16 @@ public sealed class ClaudeAgent
     /// <param name="options">The agent configuration.</param>
     /// <param name="recorder">Receives every completed model exchange.</param>
     public ClaudeAgent(AgentOptions options, TrajectoryRecorder recorder)
-        : this(options, new RecordingTransport(new AnthropicTransport(options?.ApiKey), recorder))
+        : this(options, new RecordingTransport(BuildLiveTransport(options), recorder))
     {
+    }
+
+    // The live transport, wrapped with retry/backoff (ADR: resilience is transport-level so it
+    // sits under recording — a retried attempt is recorded once — and off the deterministic replay path).
+    private static ResilientTransport BuildLiveTransport(AgentOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        return new ResilientTransport(new AnthropicTransport(options.ApiKey), options.Resilience);
     }
 
     /// <summary>Creates an agent that replays a recorded trajectory instead of calling the API.</summary>

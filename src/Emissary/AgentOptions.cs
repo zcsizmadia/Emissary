@@ -139,4 +139,7 @@ public sealed class AgentOptions
 
     /// <summary>API key override; <see langword="null"/> uses the ANTHROPIC_API_KEY environment variable.</summary>
     public string? ApiKey { get; set; }
+
+    /// <summary>Retry, backoff, and timeout behavior for transient API failures.</summary>
+    public ResilienceOptions Resilience { get; } = new();
 }

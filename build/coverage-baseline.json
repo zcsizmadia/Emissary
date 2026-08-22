@@ -17,6 +17,16 @@
       "reason": "Same async-iterator epilogue artifact as ClaudeAgent.StreamAsync; verified with an early-abandon test."
     },
     {
+      "file": "src/Emissary/Transport/ResilientTransport.cs",
+      "lineContains": "}",
+      "reason": "Async-iterator epilogue artifact on the StreamAsync closing brace, same as the other transports."
+    },
+    {
+      "file": "src/Emissary/Transport/ResilientTransport.cs",
+      "lineContains": "throw;",
+      "reason": "The rethrow in EstablishAsync's catch carries a compiler-generated exception-propagation edge from the async state machine. Every source-level path to it is tested (retries exhausted, immediate non-transient, non-transient after a retry); the uncovered half is not reachable from source."
+    },
+    {
       "file": "src/Emissary.SourceGenerators/ToolAnalyzer.cs",
       "lineContains": "Emissary.AuthorizeToolAttribute",
       "reason": "AttributeData.AttributeClass is null only for attribute syntax Roslyn cannot bind to any symbol at all; unresolved attributes bind to error symbols instead, so the null outcome is not constructible from test source."
