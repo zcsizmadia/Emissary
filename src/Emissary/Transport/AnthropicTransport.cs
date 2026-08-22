@@ -117,15 +117,25 @@ internal sealed class AnthropicTransport : IModelTransport
             {
                 if (messageDelta.Delta.StopReason is { } reason)
                 {
-                    stopReason = reason.ToString()!;
+                    // The SDK enum stringifies as PascalCase ("ToolUse") - normalize to wire form.
+                    stopReason = AnthropicMapper.NormalizeStopReason(reason.ToString()!);
                 }
 
                 outputTokens = messageDelta.Usage.OutputTokens;
             }
         }
 
+        var content = blocks.Values.ToImmutableArray();
+
+        // Authoritative: the API emits tool_use blocks iff the stop reason is tool_use. Trust the
+        // assembled content over the stringified enum so a tool turn is never missed.
+        if (content.Any(b => b is ToolUseBlock))
+        {
+            stopReason = "tool_use";
+        }
+
         yield return new StreamCompleted(new ModelResponse(
-            [.. blocks.Values], stopReason, inputTokens, outputTokens,
+            content, stopReason, inputTokens, outputTokens,
             cacheCreationTokens, cacheReadTokens));
     }
 }

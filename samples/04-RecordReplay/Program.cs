@@ -4,7 +4,10 @@ using RecordReplay;
 
 var options = new AgentOptions
 {
-    SystemPrompt = "You are a support agent. Always verify identity before refunding.",
+    SystemPrompt =
+        "You are a support agent. When a customer asks for a refund, first call verify_identity, " +
+        "then call refund_payment for the stated amount. Use the tools to complete the whole task " +
+        "before replying.",
     Tools = { SupportTools.VerifyIdentityTool, SupportTools.RefundPaymentTool },
 };
 
@@ -52,21 +55,29 @@ await foreach (var agentEvent in agent.StreamAsync(request))
 
 Console.WriteLine();
 Console.WriteLine(result!.FinalText);
-
-// Provable behavior: the refund never happened before the identity check.
-EmissaryAssert.That(result)
-    .ToolCalled("verify_identity")
-    .ToolCalled("refund_payment", times: 1)
-    .ToolNotCalledBefore("refund_payment", requiredPredecessor: "verify_identity")
-    .Stopped(AgentStopReason.Completed);
 Console.WriteLine();
-Console.WriteLine("All expectations passed: refund_payment was never called before verify_identity.");
+
+// The safety invariant holds on ANY run, live or replayed: a refund is never issued before
+// identity is verified. (If the live model skips the refund entirely, this still holds.)
+EmissaryAssert.That(result)
+    .ToolNotCalledBefore("refund_payment", requiredPredecessor: "verify_identity");
+Console.WriteLine("Invariant holds: refund_payment was never called before verify_identity.");
 
 if (record)
 {
+    // A live run is nondeterministic - report what the model actually did, don't assert exact counts.
     string path = Path.Combine(AppContext.BaseDirectory, "demo.trajectory");
     recorder!.ToTrajectory().Save(path);
     Console.WriteLine($"Recorded {recorder.ToTrajectory().Turns.Count} turn(s) to {path}");
+}
+else
+{
+    // The bundled recording is deterministic - assert its exact expected behavior.
+    EmissaryAssert.That(result)
+        .ToolCalled("verify_identity")
+        .ToolCalled("refund_payment", times: 1)
+        .Stopped(AgentStopReason.Completed);
+    Console.WriteLine("Replay matched the golden expectations exactly.");
 }
 
 return 0;

@@ -183,6 +183,27 @@ internal static class AnthropicMapper
         return dictionary;
     }
 
+    /// <summary>
+    /// Normalizes an SDK stop-reason string to Emissary's canonical wire values. The SDK's
+    /// stop-reason enum stringifies as PascalCase ("ToolUse"), not the wire form ("tool_use"),
+    /// so we must not compare its <c>ToString()</c> directly. Accepts either form.
+    /// </summary>
+    internal static string NormalizeStopReason(string raw)
+    {
+        switch (raw.Replace("_", "").ToLowerInvariant())
+        {
+            case "tooluse":
+                return "tool_use";
+            case "maxtokens":
+                return "max_tokens";
+            case "refusal":
+                return "refusal";
+            default:
+                // end_turn, stop_sequence, pause_turn, and anything else are normal completions.
+                return "end_turn";
+        }
+    }
+
     internal static Effort ToEffort(EffortLevel effort) => effort switch
     {
         EffortLevel.Low => Effort.Low,
