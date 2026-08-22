@@ -1,0 +1,55 @@
+# The full support-desk stack: the agent web service + a Postgres business database +
+# the .NET Aspire dashboard for live traces and metrics.
+#
+#   export ANTHROPIC_API_KEY=sk-ant-...
+#   docker compose -f samples/05-SupportDesk/docker-compose.yml up --build
+#
+# Then: POST a request (see README), open the Aspire dashboard at http://localhost:18888,
+# and approve refunds via the /support/approvals webhook.
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: support
+      POSTGRES_PASSWORD: support
+      POSTGRES_DB: supportdesk
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U support -d supportdesk"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  # OTLP collector + web UI in one container. Traces/metrics land here.
+  dashboard:
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:9.0
+    environment:
+      DASHBOARD__FRONTEND__AUTHMODE: Unsecured
+    ports:
+      - "18888:18888"   # dashboard UI
+      - "18889:18889"   # OTLP/gRPC ingest
+
+  supportdesk:
+    build:
+      context: ../..
+      dockerfile: samples/05-SupportDesk/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ORDERS_CONNECTION: "Host=postgres;Port=5432;Username=support;Password=support;Database=supportdesk"
+      SUSPENSION_DB: "Data Source=/data/suspensions.db"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://dashboard:18889"
+      OTEL_SERVICE_NAME: "support-desk"
+    ports:
+      - "8080:8080"
+    volumes:
+      - suspensions:/data
+
+volumes:
+  suspensions:
