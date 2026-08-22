@@ -20,3 +20,8 @@ coverage-report/
 
 # BenchmarkDotNet outputs
 BenchmarkDotNet.Artifacts/
+
+# DocFX output
+docs/_site/
+docs/api/
+
