@@ -27,9 +27,16 @@ internal static class SchemaEmitter
             braceDepth++;
         }
 
-        foreach (string container in model.Containers)
+        for (int i = 0; i < model.Containers.Count; i++)
         {
-            builder.Append("partial ").AppendLine(container);
+            builder.Append("partial ").Append(model.Containers[i]);
+            if (i == model.Containers.Count - 1)
+            {
+                // The schema type itself also implements IClaudeSchema for generic access.
+                builder.Append(" : global::Emissary.IClaudeSchema");
+            }
+
+            builder.AppendLine();
             builder.AppendLine("{");
             braceDepth++;
         }

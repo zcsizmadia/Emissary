@@ -125,6 +125,18 @@ public sealed class AgentOptions
     /// </summary>
     public string? OutputSchemaJson { get; set; }
 
+    /// <summary>
+    /// Constrains the final answer to a <c>[ClaudeSchema]</c> type's compile-time schema.
+    /// Pair with <see cref="ClaudeAgent.RunAsync{T}"/> for a typed result end to end.
+    /// </summary>
+    /// <typeparam name="T">A type marked with <see cref="ClaudeSchemaAttribute"/>.</typeparam>
+    public AgentOptions WithOutput<T>()
+        where T : IClaudeSchema
+    {
+        OutputSchemaJson = T.JsonSchema;
+        return this;
+    }
+
     /// <summary>API key override; <see langword="null"/> uses the ANTHROPIC_API_KEY environment variable.</summary>
     public string? ApiKey { get; set; }
 }
