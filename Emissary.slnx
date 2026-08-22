@@ -4,6 +4,7 @@
     <Project Path="src/Emissary.SourceGenerators/Emissary.SourceGenerators.csproj" />
     <Project Path="src/Emissary.Testing/Emissary.Testing.csproj" />
     <Project Path="src/Emissary.AspNetCore/Emissary.AspNetCore.csproj" />
+    <Project Path="src/Emissary.Extensions.AI/Emissary.Extensions.AI.csproj" />
     <Project Path="src/Emissary.Mcp/Emissary.Mcp.csproj" />
     <Project Path="src/Emissary.Sqlite/Emissary.Sqlite.csproj" />
   </Folder>

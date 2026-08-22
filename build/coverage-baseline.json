@@ -22,6 +22,11 @@
       "reason": "Async-iterator epilogue artifact on the StreamAsync closing brace, same as the other transports."
     },
     {
+      "file": "src/Emissary.Extensions.AI/EmissaryChatClient.cs",
+      "lineContains": "}",
+      "reason": "Async-iterator epilogue artifact on the GetStreamingResponseAsync closing brace, same as the transports and ClaudeAgent.StreamAsync; verified with an early-abandon test."
+    },
+    {
       "file": "src/Emissary/Transport/ResilientTransport.cs",
       "lineContains": "throw;",
       "reason": "The rethrow in EstablishAsync's catch carries a compiler-generated exception-propagation edge from the async state machine. Every source-level path to it is tested (retries exhausted, immediate non-transient, non-transient after a retry); the uncovered half is not reachable from source."
