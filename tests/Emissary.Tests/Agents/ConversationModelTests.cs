@@ -6,6 +6,7 @@ namespace Emissary.Tests;
 internal sealed record TypedAnswer(string Text, int Score);
 
 [JsonSerializable(typeof(TypedAnswer))]
+[JsonSerializable(typeof(Tools.WeatherReport))]
 internal sealed partial class TestJsonContext : JsonSerializerContext;
 
 public sealed class ConversationModelTests

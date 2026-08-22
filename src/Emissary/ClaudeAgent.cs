@@ -70,6 +70,63 @@ public sealed class ClaudeAgent
     public Task<AgentResult> RunAsync(string userInput, CancellationToken cancellationToken = default) =>
         RunAsync(Conversation.Start().Append(Message.User(userInput)), cancellationToken);
 
+    /// <summary>
+    /// Runs the agent and deserializes the final answer as <typeparamref name="T"/> — pair with
+    /// <see cref="AgentOptions.WithOutput{T}"/> so the answer is schema-guaranteed.
+    /// </summary>
+    /// <typeparam name="T">The structured output type.</typeparam>
+    /// <param name="userInput">The user's text.</param>
+    /// <param name="typeInfo">Source-generated serializer metadata for <typeparamref name="T"/>.</param>
+    /// <param name="cancellationToken">Cancels the run.</param>
+    public async Task<T> RunAsync<T>(
+        string userInput,
+        System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await RunAsync(userInput, cancellationToken).ConfigureAwait(false);
+        return result.FinalAs(typeInfo);
+    }
+
+    /// <summary>
+    /// Exposes this whole agent as a single tool for another agent — the composition primitive
+    /// for sub-agent hierarchies. The tool takes a <c>message</c> and returns the sub-agent's
+    /// final answer. Safety composes conservatively: the tool is marked
+    /// <see cref="ToolDefinition.Untrusted"/> if this agent can read untrusted content, and
+    /// <see cref="ToolDefinition.Privileged"/> if it can perform privileged effects — so a
+    /// parent's taint tracking and contracts see through the boundary.
+    /// </summary>
+    /// <param name="name">The wire name of the composed tool.</param>
+    /// <param name="description">The description shown to the parent's model.</param>
+    public ToolDefinition AsTool(string name, string description)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        ArgumentException.ThrowIfNullOrEmpty(description);
+
+        return new ToolDefinition(
+            name,
+            description,
+            """{"type":"object","properties":{"message":{"type":"string"}},"required":["message"]}""",
+            async (input, cancellationToken) =>
+            {
+                if (!input.TryGetProperty("message", out var messageProperty)
+                    || messageProperty.GetString() is not { Length: > 0 } message)
+                {
+                    throw new ToolArgumentException($"Tool '{name}' is missing required argument 'message'.");
+                }
+
+                var result = await RunAsync(message, cancellationToken).ConfigureAwait(false);
+                if (result.StopReason != AgentStopReason.Completed)
+                {
+                    throw new ToolArgumentException(
+                        $"Sub-agent '{name}' stopped with {result.StopReason} before completing.");
+                }
+
+                return result.FinalText;
+            },
+            untrusted: _activeTools.Any(t => t.Untrusted),
+            privileged: _activeTools.Any(t => t.Privileged));
+    }
+
     /// <summary>Runs the agent on an existing conversation and returns the outcome.</summary>
     /// <param name="conversation">The conversation so far; the last message must be from the user.</param>
     /// <param name="cancellationToken">Cancels the run.</param>
