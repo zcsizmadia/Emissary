@@ -44,8 +44,8 @@ safety declaration is inconsistent, **the build fails, not the production run**.
 
 **🛠 The compiler is the safety net.** Tools, structured-output schemas, and argument binders
 are source-generated — no reflection anywhere in the pipeline. Analyzer diagnostics
-(`EMS001`–`EMS009`) catch undescribed tools, unrepresentable types, and broken contracts in
-the IDE. The proof lives in CI: a full agent with tools, nested records, and strict schemas
+(`EMS001`–`EMS010`) catch undescribed tools and parameters, unrepresentable types, broken
+compensation targets, and safety attributes that would be silently ignored — in the IDE. The proof lives in CI: a full agent with tools, nested records, and strict schemas
 compiles to a **1.5 MB self-contained Native AOT binary** on every commit.
 
 **🔒 Provable behavior, not prompt engineering.** The answer to *"how do you guarantee the
@@ -110,7 +110,21 @@ if (!eval.Passed) Console.WriteLine(eval.ToText());
   tools callable from Claude Code and Claude Desktop: `claude mcp add my-tools -- dotnet run ...`
 - **Prompt caching by default** — automatic cache breakpoints (tools, system prompt, latest
   message) keep multi-turn cache hit rates high; cache economics are visible per run.
-- **Token budgets** — hard caps that stop a run before the next model call.
+- **Resilience** — `options.Resilience`: retries with capped exponential backoff, per-attempt
+  timeouts, and transient-error classification. Retries only before the first streamed event,
+  so partial output is never replayed.
+- **Web search** — `options.WebSearch = new WebSearchOptions { MaxUses = 3 }` turns on Claude's
+  server-side search (with domain allow/block lists).
+- **Durable chat sessions** — `ConversationSession` persists history by conversation id through
+  `IConversationStore` (in-memory or SQLite), so a chatbot resumes across requests and restarts.
+- **Token budgets and dollar costs** — hard token caps that stop a run before the next model
+  call, plus `CostEstimator` for per-tier (input/output/cache-write/cache-read) pricing.
+- **Context compaction** — `options.Compaction.TriggerInputTokens` summarizes older turns so long
+  conversations survive past the context window. Emissary compacts client-side on purpose, so
+  compacted runs still replay ([ADR 0006](docs/adr/0006-client-side-compaction.md)).
+- **Sub-agent composition** — `agent.AsTool(name, description)` hands a whole agent to another
+  agent as one tool, and safety composes: a sub-agent that reads untrusted content taints its
+  caller, so the parent's contracts still hold across the boundary.
 - **OpenTelemetry GenAI semantic conventions** — `invoke_agent`/`chat`/`execute_tool` spans,
   token and tool-call metrics. `AddSource("Emissary")` and it appears in Aspire.
 - Streaming (`IAsyncEnumerable<AgentEvent>` including thinking deltas), adaptive thinking and
@@ -160,9 +174,12 @@ Typed structured outputs are the same pattern, in reverse:
 [ClaudeSchema]
 public sealed partial record TicketTriage(string Title, Severity Severity, string[] Tags);
 
-var options = new AgentOptions { OutputSchemaJson = TicketTriage.JsonSchema };
-var triage = result.FinalAs(MyJsonContext.Default.TicketTriage);  // guaranteed to conform
+var options = new AgentOptions().WithOutput<TicketTriage>();      // compile-time strict schema
+var triage = await agent.RunAsync("Triage this…", MyJsonContext.Default.TicketTriage);
 ```
+
+The schema is generated from the record, the API enforces it, and the result deserializes through
+System.Text.Json source generation — typed end to end, no reflection.
 
 ## Packages
 
