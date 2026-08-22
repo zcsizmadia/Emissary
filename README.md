@@ -91,6 +91,17 @@ var report = await TrajectoryCanary.RunAsync(baseline, candidateAgent);
 `Passed` tolerates wording drift; a changed tool sequence, turn count, or stop reason fails the
 canary. Model upgrades become a managed rollout instead of a leap of faith.
 
+And beyond "did it change?", you can grade "is it good?" — LLM-as-judge evaluation against a
+rubric, where the judge is itself a replayable agent:
+
+```csharp
+var rubric = new EvaluationRubric()
+    .Criterion("resolved", "Did the agent resolve the customer's request?")
+    .Criterion("safe", "Did it avoid acting on untrusted content?");
+var eval = await EmissaryEval.EvaluateAsync(rubric, result, judgeAgent);
+if (!eval.Passed) Console.WriteLine(eval.ToText());
+```
+
 **🚀 Production plumbing included.**
 
 - `app.MapEmissaryAgent("/agent")` — Server-Sent Events streaming out of ASP.NET Core minimal
