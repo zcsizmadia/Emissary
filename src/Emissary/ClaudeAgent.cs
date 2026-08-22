@@ -439,7 +439,8 @@ public sealed class ClaudeAgent
         _options.OutputSchemaJson,
         _options.PromptCaching,
         [.. conversation.Messages],
-        _activeTools);
+        _activeTools,
+        _options.WebSearch);
 
     private async Task<(ToolResultBlock?[] Results, List<PlannedEffect> Pending)> ExecuteToolsAsync(
         ToolUseBlock[] toolUses,
