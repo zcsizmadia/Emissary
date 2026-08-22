@@ -11,6 +11,7 @@
     <ProjectReference Include="..\..\src\Emissary.SourceGenerators\Emissary.SourceGenerators.csproj" OutputItemType="Analyzer" />
     <ProjectReference Include="..\..\src\Emissary.Testing\Emissary.Testing.csproj" />
     <ProjectReference Include="..\..\src\Emissary.AspNetCore\Emissary.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\src\Emissary.Extensions.AI\Emissary.Extensions.AI.csproj" />
     <ProjectReference Include="..\..\src\Emissary.Mcp\Emissary.Mcp.csproj" />
     <ProjectReference Include="..\..\src\Emissary.Sqlite\Emissary.Sqlite.csproj" />
   </ItemGroup>
