@@ -9,4 +9,5 @@ namespace Emissary.Serialization;
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(Trajectory))]
 [JsonSerializable(typeof(SuspendedRun))]
+[JsonSerializable(typeof(PersistedConversation))]
 internal sealed partial class EmissaryJsonContext : JsonSerializerContext;
