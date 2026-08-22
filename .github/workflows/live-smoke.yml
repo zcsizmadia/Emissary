@@ -1,0 +1,47 @@
+name: Live smoke
+
+# Validates the real Claude transport (streaming, tool loop, structured outputs) against the
+# live API. Deliberately OFF the PR gate: it is non-deterministic, costs a few cents, and needs
+# a secret forks can't see. Run it manually or on a weekly schedule. It skips cleanly when the
+# ANTHROPIC_API_KEY secret is not configured.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"   # Mondays 06:00 UTC
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gate on API key
+        id: gate
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "have_key=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ANTHROPIC_API_KEY secret not set — skipping live smoke."
+          fi
+
+      - uses: actions/checkout@v7
+        if: steps.gate.outputs.have_key == 'true'
+
+      - uses: actions/setup-dotnet@v6
+        if: steps.gate.outputs.have_key == 'true'
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Structured outputs (03-TypedOutputs)
+        if: steps.gate.outputs.have_key == 'true'
+        run: dotnet run --project samples/03-TypedOutputs -c Release
+
+      - name: Tool loop (01-HelloTool)
+        if: steps.gate.outputs.have_key == 'true'
+        run: dotnet run --project samples/01-HelloTool -c Release -- "Roll 2 six-sided dice and give the total."
