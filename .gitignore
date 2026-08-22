@@ -17,3 +17,6 @@ coverage-report/
 # NuGet
 *.nupkg
 *.snupkg
+
+# BenchmarkDotNet outputs
+BenchmarkDotNet.Artifacts/
