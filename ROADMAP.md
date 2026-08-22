@@ -79,10 +79,10 @@ Cache-aware prompt assembly (automatic `cache_control` placement, stable prefix 
 invalidation detection with runtime warnings), compaction / context-editing lifecycle, token budgets
 (`task_budget`) + local cost accounting, full OTel GenAI semantic conventions, Aspire dashboard sample.
 
-*Status: automatic cache breakpoints (tools/system/latest message), cache-usage accounting, local
-token budgets, and OTel GenAI spans + metrics landed. Deferred to a follow-up: server-side
-compaction lifecycle (needs the beta client path), server `task_budget`, cache-invalidation
-analyzer warnings, and sample 05.*
+*Status: COMPLETE. Automatic cache breakpoints (tools/system/latest message), cache-usage
+accounting, local token budgets, OTel GenAI spans + metrics, sample 05, and **client-side context
+compaction** (ADR 0006 — chosen over the opaque server-side beta so compacted runs stay
+replayable). Still open: server `task_budget` and cache-invalidation analyzer warnings.*
 
 **Exit:** long-running demo agent holds a high cache-read ratio and survives past the context window;
 all spans/metrics visible in Aspire.
