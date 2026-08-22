@@ -35,7 +35,7 @@ internal static class SchemaEmitter
         }
 
         builder.AppendLine("/// <summary>The strict JSON Schema for this type, generated at compile time.</summary>");
-        builder.AppendLine("[global::System.CodeDom.Compiler.GeneratedCode(\"Emissary.SourceGenerators\", \"0.1.0\")]");
+        builder.AppendLine($"[global::System.CodeDom.Compiler.GeneratedCode(\"Emissary.SourceGenerators\", \"{GeneratorInfo.Version}\")]");
         builder.Append("public static string JsonSchema { get; } = ")
             .Append(SymbolDisplay.FormatLiteral(schema, quote: true)).AppendLine(";");
 

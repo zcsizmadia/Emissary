@@ -6,6 +6,9 @@
     <IsAotCompatible>false</IsAotCompatible>
     <IsRoslynComponent>true</IsRoslynComponent>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <!-- Not shipped standalone: the Emissary package carries this generator as its analyzer. -->
+    <IsPackable>false</IsPackable>
+    <EnablePackageValidation>false</EnablePackageValidation>
     <!-- RS2008: analyzer release tracking files — deferred until first NuGet release. -->
     <NoWarn>$(NoWarn);RS2008</NoWarn>
   </PropertyGroup>

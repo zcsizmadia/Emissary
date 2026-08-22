@@ -11,6 +11,31 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <Description>Production-grade Claude agents for .NET — AOT-compiled, zero-trust, observable.</Description>
     <PackageTags>claude;anthropic;agents;ai;aot</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>https://github.com/zcsizmadia/Emissary</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/zcsizmadia/Emissary</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
   </PropertyGroup>
+
+  <!-- Versioning: git tags are the single source of truth (ADR 0005). Tag v1.2.3 => 1.2.3;
+       untagged commits build as the next patch with an alpha height suffix. -->
+  <PropertyGroup>
+    <MinVerTagPrefix>v</MinVerTagPrefix>
+  </PropertyGroup>
+
+  <!-- Debuggability + release hygiene: SourceLink (built into the SDK), symbol packages,
+       and pack-time package validation. -->
+  <PropertyGroup>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <EnablePackageValidation>true</EnablePackageValidation>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MinVer" PrivateAssets="all" />
+    <None Include="$(RepoRoot)README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
 </Project>

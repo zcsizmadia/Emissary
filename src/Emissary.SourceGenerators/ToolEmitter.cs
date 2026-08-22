@@ -9,7 +9,7 @@ namespace Emissary.SourceGenerators;
 /// <summary>Emits the generated partial-type source for one analyzed tool method.</summary>
 internal static class ToolEmitter
 {
-    private const string GeneratorVersion = "0.1.0";
+    private static readonly string GeneratorVersion = GeneratorInfo.Version;
 
     public static string Emit(ToolModel model)
     {

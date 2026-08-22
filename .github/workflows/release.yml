@@ -1,0 +1,71 @@
+name: Release
+
+# A release is pushing a tag: `git tag v0.2.0 && git push origin v0.2.0` (ADR 0005).
+# The pipeline re-runs the full quality gauntlet before anything is published.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # MinVer derives the version from tag history
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore and build
+        run: |
+          dotnet restore Emissary.slnx
+          dotnet build Emissary.slnx --configuration Release --no-restore
+
+      - name: Test with coverage
+        run: >
+          dotnet test --solution Emissary.slnx --configuration Release --no-build
+          -- --coverage --coverage-output-format cobertura --coverage-output coverage.cobertura.xml
+
+      - name: Enforce coverage gate
+        shell: pwsh
+        run: |
+          dotnet tool restore
+          dotnet reportgenerator -reports:"TestResults/coverage.cobertura.xml" -targetdir:coverage-report "-reporttypes:JsonSummary" "-assemblyfilters:+Emissary*;-*.Tests" "-filefilters:-*.g.cs"
+          ./build/check-coverage.ps1
+
+      - name: Native AOT proof
+        run: |
+          dotnet publish tests/Emissary.AotProof --configuration Release
+          ./tests/Emissary.AotProof/bin/Release/net10.0/linux-x64/publish/Emissary.AotProof
+
+      - name: Pack
+        run: dotnet pack Emissary.slnx --configuration Release --no-build -o artifacts/packages
+
+      - name: Push to NuGet.org
+        run: >
+          dotnet nuget push "artifacts/packages/*.nupkg"
+          --api-key "${{ secrets.NUGET_API_KEY }}"
+          --source https://api.nuget.org/v3/index.json
+          --skip-duplicate
+
+      - name: Create or update GitHub release
+        # Works for both flows: a CLI-pushed tag (create the release) and a release drafted in
+        # the GitHub UI with "create tag on publish" (attach packages to the existing release).
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" artifacts/packages/*.nupkg --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" artifacts/packages/*.nupkg \
+              --title "$GITHUB_REF_NAME" --generate-notes
+          fi

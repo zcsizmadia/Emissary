@@ -126,6 +126,12 @@ with the AOT guarantee; revisit when it is AOT-ready.*
 Docs site, three polished samples (console, ASP.NET Core, Aspire), published BenchmarkDotNet numbers
 (binary size, cold start, memory per conversation — vs. MAF equivalent), NuGet release, announcement.
 
+*Status: release engineering + flagship README landed — tag-driven MinVer versioning (ADR 0005),
+lockstep packages with the generator embedded in the core package, SourceLink + snupkg + package
+validation, release.yml (tag → gauntlet → NuGet + GitHub release), CI pack dry-run. Remaining:
+NuGet API key + prefix reservation (owner action), first preview tag, BenchmarkDotNet numbers,
+sample 09-AspireDashboard, docs site, announcement.*
+
 ## Samples plan (`samples/`)
 
 Numbered in learning order — a reader should be able to walk 01 → 09 and end up an expert.
