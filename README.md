@@ -181,6 +181,14 @@ and releases are tag-driven ([ADR 0005](docs/adr/0005-versioning-and-releases.md
 Built on the official [Anthropic C# SDK](https://www.nuget.org/packages/Anthropic), kept behind
 an internal seam so its types never enter Emissary's public API.
 
+## Sponsor
+
+Emissary is free and MIT-licensed. If it saves you time or your team relies on it, please
+consider sponsoring its development — it directly funds the time that keeps the 100%-coverage,
+provably-safe engineering bar high.
+
+[![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-db61a2?logo=github-sponsors)](https://github.com/sponsors/zcsizmadia)
+
 ## License
 
 [MIT](LICENSE)
