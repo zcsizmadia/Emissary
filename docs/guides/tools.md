@@ -163,6 +163,27 @@ property name, a partially spelled enum — are skipped.
 > hold only the part received so far. Guard against nulls when rendering, and use the final item
 > (or `RunAsync<T>`) when you need the whole answer.
 
+## Web search is single-turn, for now
+
+`options.WebSearch` turns on Claude's server-side search, which runs inside one turn — Emissary
+never dispatches it. A turn's `text`, `thinking`, and `tool_use` blocks are assembled into the
+conversation; the blocks a search produces (`server_tool_use`, `web_search_tool_result`, and the
+citations attached to text) are **not yet modeled**, so they do not survive into the recorded
+conversation.
+
+What that means in practice:
+
+- A single-turn "search and answer" works normally.
+- On a **later** turn the model no longer sees its own search results, so it may search again.
+- Citations are unavailable.
+- A turn made up only of server-side blocks ends the run rather than sending an empty message the
+  API would reject — reported as `Paused` when the API paused the turn.
+
+Round-tripping these blocks means getting eight content-block shapes and their request-side
+equivalents exactly right; a wrong shape makes every follow-up turn fail. Per
+[ADR 0008](../adr/0008-sdk-boundary-testing.md) that has to be verified against the live API rather
+than inferred, so it is tracked as work rather than guessed at.
+
 ## Diagnostics
 
 | Id | Severity | Meaning |
