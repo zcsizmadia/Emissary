@@ -113,6 +113,7 @@ public sealed class ChatClientAdapterTests
     [Arguments(AgentStopReason.TurnLimit, "tool_calls")]
     [Arguments(AgentStopReason.BudgetExceeded, "tool_calls")]
     [Arguments(AgentStopReason.AwaitingApproval, "tool_calls")]
+    [Arguments(AgentStopReason.Paused, "length")]
     public async Task Stop_reasons_map_to_chat_finish_reasons(AgentStopReason stopReason, string expected)
     {
         await Assert.That(EmissaryChatClient.ToFinishReason(stopReason).Value).IsEqualTo(expected);

@@ -20,6 +20,13 @@ public enum AgentStopReason
 
     /// <summary>The run paused at a human-in-the-loop gate; see <see cref="AgentResult.Suspension"/>.</summary>
     AwaitingApproval,
+
+    /// <summary>
+    /// A server-side tool (web search) paused the turn before the model finished. The answer so far
+    /// is in the conversation but is <b>incomplete</b>: continue by running the agent again on
+    /// <see cref="AgentResult.Conversation"/>.
+    /// </summary>
+    Paused,
 }
 
 /// <summary>Token usage accumulated across all turns of a run.</summary>

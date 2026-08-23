@@ -452,6 +452,19 @@ public sealed class ClaudeAgent
             {
                 compactBeforeNextCall = true;
             }
+            // A turn can assemble to nothing — every block a kind this transport does not surface
+            // (a server-side tool result, say). Appending an empty assistant message would poison
+            // the next request, which the API rejects for having empty content, so the run ends
+            // here instead with whatever it has.
+            if (response.Content.Length == 0)
+            {
+                EmissaryDiagnostics.Tag(runActivity, "emissary.empty_turn", true);
+                stopReason = response.StopReason == "pause_turn"
+                    ? AgentStopReason.Paused
+                    : AgentStopReason.Completed;
+                break;
+            }
+
             var assistant = new Message(MessageRole.Assistant, response.Content);
             conversation = conversation.Append(assistant);
             yield return new AgentTurnEvent(assistant);
@@ -525,6 +538,7 @@ public sealed class ClaudeAgent
             {
                 "max_tokens" => AgentStopReason.MaxTokens,
                 "refusal" => AgentStopReason.Refusal,
+                "pause_turn" => AgentStopReason.Paused,
                 _ => AgentStopReason.Completed,
             };
             break;

@@ -118,7 +118,9 @@ public sealed class EmissaryChatClient : IChatClient
 
     internal static ChatFinishReason ToFinishReason(AgentStopReason stopReason) => stopReason switch
     {
-        AgentStopReason.MaxTokens => ChatFinishReason.Length,
+        // Paused reports as Length for the same reason MaxTokens does: the response is incomplete,
+        // and Length is the only value in this vocabulary that says so.
+        AgentStopReason.MaxTokens or AgentStopReason.Paused => ChatFinishReason.Length,
         AgentStopReason.Refusal => ChatFinishReason.ContentFilter,
         AgentStopReason.TurnLimit or AgentStopReason.BudgetExceeded or AgentStopReason.AwaitingApproval =>
             ChatFinishReason.ToolCalls,
