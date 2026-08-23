@@ -143,17 +143,51 @@ public sealed class AnthropicMapperTests
     [Test]
     [Arguments("ToolUse", "tool_use")]
     [Arguments("tool_use", "tool_use")]
+    [Arguments("\"tool_use\"", "tool_use")]
     [Arguments("MaxTokens", "max_tokens")]
     [Arguments("max_tokens", "max_tokens")]
+    [Arguments("\"max_tokens\"", "max_tokens")]
+    [Arguments("model_context_window_exceeded", "max_tokens")]
     [Arguments("Refusal", "refusal")]
+    [Arguments("\"refusal\"", "refusal")]
     [Arguments("EndTurn", "end_turn")]
     [Arguments("end_turn", "end_turn")]
     [Arguments("StopSequence", "end_turn")]
-    [Arguments("PauseTurn", "end_turn")]
+    [Arguments("pause_turn", "pause_turn")]
+    [Arguments("\"pause_turn\"", "pause_turn")]
     [Arguments("something_new", "end_turn")]
-    public async Task NormalizeStopReason_maps_pascal_and_wire_forms(string raw, string expected)
+    public async Task NormalizeStopReason_maps_pascal_wire_and_json_forms(string raw, string expected)
     {
         await Assert.That(AnthropicMapper.NormalizeStopReason(raw)).IsEqualTo(expected);
+    }
+
+    /// <summary>
+    /// The regression guard for the bug this normalization exists to prevent: it asserts against
+    /// what the <b>real SDK</b> produces from a real <c>message_delta</c> frame, not against a
+    /// hand-written string. The SDK renders the enum as JSON (<c>"tool_use"</c>, quotes included),
+    /// so reading <c>ToString()</c> once made every stop reason collapse to <c>end_turn</c> —
+    /// leaving MaxTokens and Refusal unreachable in production while every offline test passed.
+    /// </summary>
+    [Test]
+    [Arguments("end_turn", "end_turn")]
+    [Arguments("tool_use", "tool_use")]
+    [Arguments("max_tokens", "max_tokens")]
+    [Arguments("refusal", "refusal")]
+    [Arguments("pause_turn", "pause_turn")]
+    public async Task The_stop_reason_the_sdk_deserializes_normalizes_correctly(string wire, string expected)
+    {
+        string frame = """
+            {"type":"message_delta","delta":{"stop_reason":"WIRE","stop_sequence":null},"usage":{"output_tokens":7}}
+            """.Replace("WIRE", wire, StringComparison.Ordinal);
+        var deserialized = System.Text.Json.JsonSerializer.Deserialize<RawMessageDeltaEvent>(frame);
+        var reason = deserialized!.Delta.StopReason;
+
+        // How the transport reads it.
+        await Assert.That(AnthropicMapper.NormalizeStopReason(reason!.Raw())).IsEqualTo(expected);
+
+        // And the trap: the JSON rendering must normalize the same way, so a future refactor that
+        // reaches for ToString() cannot silently reintroduce the bug.
+        await Assert.That(AnthropicMapper.NormalizeStopReason(reason.ToString()!)).IsEqualTo(expected);
     }
 
     [Test]

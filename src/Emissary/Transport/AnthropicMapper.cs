@@ -197,22 +197,31 @@ internal static class AnthropicMapper
     }
 
     /// <summary>
-    /// Normalizes an SDK stop-reason string to Emissary's canonical wire values. The SDK's
-    /// stop-reason enum stringifies as PascalCase ("ToolUse"), not the wire form ("tool_use"),
-    /// so we must not compare its <c>ToString()</c> directly. Accepts either form.
+    /// Normalizes a stop reason to Emissary's canonical wire values, tolerating every form the SDK
+    /// has been observed to produce: the wire value from <c>ApiEnum.Raw()</c> (<c>tool_use</c>), the
+    /// JSON rendering from <c>ToString()</c> (<c>"tool_use"</c>, quotes included), and PascalCase
+    /// (<c>ToolUse</c>). Read <c>Raw()</c> at the call site; the leniency here is a safety net for
+    /// an SDK still in beta, not a licence to pass <c>ToString()</c>.
     /// </summary>
     internal static string NormalizeStopReason(string raw)
     {
-        switch (raw.Replace("_", "").ToLowerInvariant())
+        switch (raw.Trim('"').Replace("_", "").ToLowerInvariant())
         {
             case "tooluse":
                 return "tool_use";
             case "maxtokens":
+            // The context window overflowed, so the answer is cut short for the same reason a token
+            // limit cuts it short — callers that handle one should handle the other.
+            case "modelcontextwindowexceeded":
                 return "max_tokens";
             case "refusal":
                 return "refusal";
+            case "pauseturn":
+                // A server-side tool (web search) paused the turn mid-flight. The answer is
+                // incomplete, so reporting it as a normal completion would be a lie.
+                return "pause_turn";
             default:
-                // end_turn, stop_sequence, pause_turn, and anything else are normal completions.
+                // end_turn, stop_sequence, and anything else are normal completions.
                 return "end_turn";
         }
     }

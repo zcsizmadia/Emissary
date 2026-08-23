@@ -111,7 +111,13 @@ internal sealed class AnthropicTransport : IModelTransport
                 }
                 else if (toolParts.Remove(index, out (string Id, string Name, StringBuilder Json) toolPart))
                 {
-                    string json = toolPart.Json.Length == 0 ? "{}" : toolPart.Json.ToString();
+                    // A turn that hits max_tokens mid-argument still frames the stream correctly, so
+                    // the accumulated JSON can be a truncated prefix. Complete what arrived instead
+                    // of throwing a JsonReaderException out of the transport; the binder then
+                    // reports any missing argument to the model, which can retry.
+                    string json = toolPart.Json.Length == 0
+                        ? "{}"
+                        : PartialJson.TryComplete(toolPart.Json.ToString()) ?? "{}";
                     using var document = JsonDocument.Parse(json);
                     blocks[index] = new ToolUseBlock(toolPart.Id, toolPart.Name, document.RootElement.Clone());
                 }
@@ -120,8 +126,9 @@ internal sealed class AnthropicTransport : IModelTransport
             {
                 if (messageDelta.Delta.StopReason is { } reason)
                 {
-                    // The SDK enum stringifies as PascalCase ("ToolUse") - normalize to wire form.
-                    stopReason = AnthropicMapper.NormalizeStopReason(reason.ToString()!);
+                    // Raw() is the unquoted wire value. ToString() renders the JSON form - quotes
+                    // included - which matched nothing and silently made every run "end_turn".
+                    stopReason = AnthropicMapper.NormalizeStopReason(reason.Raw());
                 }
 
                 outputTokens = messageDelta.Usage.OutputTokens;

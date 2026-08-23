@@ -81,6 +81,29 @@ A failed call never counts as a success for contracts: `Rules.Require("ship", "c
 blocks shipping if the charge threw. When a failing tool means the whole run is untrustworthy,
 switch to `ToolFailureMode.Propagate` and handle the exception yourself.
 
+## Reading the stop reason
+
+`AgentResult.StopReason` is the API's verdict, not a summary — check it before trusting
+`FinalText`, because three of its values mean the answer is **incomplete**:
+
+| Stop reason | What it means |
+|---|---|
+| `Completed` | The model finished. |
+| `MaxTokens` | Cut off by `options.MaxTokens`, or by the context window. |
+| `Refusal` | The model declined. |
+| `Paused` | A server-side tool (web search) paused the turn mid-answer. |
+| `TurnLimit` / `BudgetExceeded` | Emissary stopped the run at `MaxTurns` / `TokenBudget`. |
+| `AwaitingApproval` | A gated call suspended the run; see `Suspension`. |
+
+`Paused` is continuable — run the agent again on the conversation it returns:
+
+```csharp
+while (result.StopReason == AgentStopReason.Paused)
+{
+    result = await agent.RunAsync(result.Conversation);
+}
+```
+
 ## Prompt caching and cost
 
 Caching is **on by default** (`PromptCacheMode.Automatic`): breakpoints go after the tool
