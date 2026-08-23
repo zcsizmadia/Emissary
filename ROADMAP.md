@@ -176,6 +176,31 @@ Phases 0–7 are complete; work now lands as one focused feature per PR, each he
    `EMS012` replaces it, catching a tool and compensator that differ in static-ness.
 7. **Contract validation at construction** — an agent whose `Rules` name a tool it does not have
    throws instead of running with a silently unenforceable safety contract.
+8. **`MaxParallelTools`** — bounds how many of a turn's tool calls execute at once, so one turn
+   cannot drain a connection pool.
+9. **Sample 10** — instance tools resolved from DI, runnable with no API key.
+10. **SDK-boundary correctness sweep** — an audit of the code that interprets SDK values found
+    defects no offline test could see, because the tests asserted against invented values rather
+    than SDK-produced ones. Fixed: stop reasons (every one collapsed to `end_turn`, making
+    `MaxTokens` and `Refusal` unreachable), `pause_turn` reported as a completion, a tool call
+    truncated mid-argument throwing out of the transport, an empty turn poisoning the next request,
+    cancellation severed for the body of every stream, connection failures never retried, SDK
+    retries multiplying ours, and an MCP server that a JSON-RPC batch could kill. The practice that
+    prevents the class is [ADR 0008](docs/adr/0008-sdk-boundary-testing.md).
+11. **Suspension and SSE hardening** — a client disconnect no longer loses a suspended run, an
+    approval is at-most-once (`DeleteAsync` is an atomic claim), responses are not proxy-buffered,
+    and a mid-stream failure emits an `error` event instead of a dead connection.
+
+### Needs the live API before it can be built
+
+Verified-not-inferred is now a rule ([ADR 0008](docs/adr/0008-sdk-boundary-testing.md)), so these
+wait for API credits rather than being guessed at:
+
+- **Server-side search round-trip** — `server_tool_use`, `web_search_tool_result` and text
+  citations are not modeled, so a search does not survive into a later turn. Eight block shapes
+  plus their request-side equivalents; a wrong shape fails every follow-up turn.
+- **Re-running `live-smoke`** against the fixed transport, which is the only end-to-end proof that
+  the stop-reason and cancellation fixes behave as measured.
 
 ## Post-1.0 backlog (in order)
 

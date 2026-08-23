@@ -61,7 +61,9 @@ money, in a replayable trajectory.
 > [!NOTE]
 > Server-side web search (`AgentOptions.WebSearch`) executes inside the API, so its content never
 > passes through the client tool loop and is **not** covered by taint tracking. Treat
-> search-influenced output accordingly.
+> search-influenced output accordingly. It also has a
+> [round-trip limitation](tools.md#web-search-is-single-turn-for-now) worth reading before you
+> rely on it across turns.
 
 ## Authorization (RBAC)
 
