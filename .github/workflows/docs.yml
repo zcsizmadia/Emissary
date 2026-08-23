@@ -24,6 +24,8 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      pages_enabled: ${{ steps.pages.outputs.enabled }}
     steps:
       - uses: actions/checkout@v7
 
@@ -36,25 +38,31 @@ jobs:
           dotnet tool restore
           dotnet docfx docs/docfx.json --warningsAsErrors
 
-      # Turns Pages on for the repository if it is not already, so the deploy job below has
-      # somewhere to publish to. Without this the first deploy 404s until someone enables Pages
-      # by hand in Settings.
-      - name: Configure Pages
-        if: github.ref == 'refs/heads/main'
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
+      # Publishing needs GitHub Pages enabled on the repository, which the workflow token cannot
+      # do for itself (creating a Pages site requires admin rights). So detect it and skip the
+      # publish cleanly rather than failing a run over a setting that is not turned on yet.
+      - name: Check whether Pages is enabled
+        id: pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/${{ github.repository }}/pages" >/dev/null 2>&1; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Docs not published::GitHub Pages is not enabled for this repository. The site built successfully but was not published. Enable it once at Settings → Pages → Source: GitHub Actions."
+          fi
 
       - name: Upload artifact
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && steps.pages.outputs.enabled == 'true'
         uses: actions/upload-pages-artifact@v4
         with:
           path: docs/_site
 
   deploy:
-    # The build job enables Pages via the API, so this normally just works. If your organization
-    # blocks that, enable it once by hand: Settings → Pages → Source: GitHub Actions.
-    if: github.ref == 'refs/heads/main'
+    # Runs only once Pages is enabled (Settings → Pages → Source: GitHub Actions). Until then the
+    # build job still validates the site on every push and PR; this job is simply skipped.
+    if: github.ref == 'refs/heads/main' && needs.build.outputs.pages_enabled == 'true'
     needs: build
     runs-on: ubuntu-latest
     environment:
