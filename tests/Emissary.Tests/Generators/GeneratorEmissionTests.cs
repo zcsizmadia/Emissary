@@ -206,10 +206,11 @@ public sealed class GeneratorEmissionTests
 
         string source = GeneratorHarness.GeneratedSource(result);
         await Assert.That(source).Contains("await Work(__arg_flag, __arg_count, __arg_big, __arg_ratio, __arg_text, cancellationToken)");
-        await Assert.That(source).Contains(".GetBoolean()");
-        await Assert.That(source).Contains(".GetInt32()");
-        await Assert.That(source).Contains(".GetInt64()");
-        await Assert.That(source).Contains(".GetDouble()");
+        await Assert.That(source).Contains("""ToolArguments.ReadBool(__p_flag, "Tool 'work' argument 'flag'")""");
+        await Assert.That(source).Contains("""ToolArguments.ReadInt32(__p_count, "Tool 'work' argument 'count'")""");
+        await Assert.That(source).Contains("""ToolArguments.ReadInt64(__p_big, "Tool 'work' argument 'big'")""");
+        await Assert.That(source).Contains("""ToolArguments.ReadDouble(__p_ratio, "Tool 'work' argument 'ratio'")""");
+        await Assert.That(source).Contains("""ToolArguments.ReadString(__p_text, "Tool 'work' argument 'text'")""");
         await Assert.That(source).DoesNotContain("\"token\"");
     }
 

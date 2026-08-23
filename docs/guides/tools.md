@@ -49,6 +49,28 @@ public sealed record Reservation(string Room, string CheckInDate, string[] Guest
 Anything else is a build error (`EMS002`) naming the offending parameter — not a runtime
 serialization failure.
 
+## When the model sends the wrong type
+
+Models do occasionally send `"3"` where a number belongs, or invent an enum value. The generated
+binder validates every value against the declared type and returns an error tool result naming what
+was expected and what arrived, so the model can correct itself on the next turn instead of the run
+dying on an exception:
+
+```text
+Tool 'add' argument 'left' must be a whole number between -2147483648 and 2147483647,
+but the value was the string "one".
+
+Tool 'convert' argument 'unit' must be one of: Celsius, Fahrenheit. Received "Kelvin".
+
+Tool 'join' argument 'parts' item 2 must be a string, but the value was the number 3.
+```
+
+Object members report as `Object 'Address' member 'zip'`, and an unknown enum value always lists the
+permitted set — the model usually gets it right on the retry. Two details worth knowing: an explicit
+`null` is treated the same as an absent property (so an optional parameter falls back to its
+default, and a required one reports as missing), and a number too large for its parameter type is
+rejected rather than silently saturated to infinity.
+
 ## Capping tool output
 
 A tool that returns far more than you expected — a table dump, a whole log file — quietly

@@ -102,29 +102,38 @@ internal static class ToolEmitter
         string fallback = parameter.IsOptional
             ? parameter.DefaultLiteral
             : $"throw new global::Emissary.ToolArgumentException({Literal($"Tool '{model.ToolName}' is missing required argument '{parameter.JsonName}'.")})";
+        string what = Literal($"Tool '{model.ToolName}' argument '{parameter.JsonName}'");
 
         builder.AppendLine(
             $"    {parameter.DeclaredTypeFullName} __arg_{parameter.CSharpName} = " +
             $"input.TryGetProperty({Literal(parameter.JsonName)}, out global::System.Text.Json.JsonElement {element}) " +
             $"&& {element}.ValueKind != global::System.Text.Json.JsonValueKind.Null " +
-            $"? {Reader(model, parameter, element)} : {fallback};");
+            $"? {Reader(model, parameter, element, what)} : {fallback};");
     }
 
-    private static string Reader(ToolModel model, ParameterModel parameter, string element) => parameter.Kind switch
-    {
-        JsonKind.Enum => EnumParserName(parameter.EnumType!) + "(" + element + ".GetString()!)",
-        JsonKind.Object => model.Pocos[parameter.PocoIndex].BinderName + "(" + element + ")",
-        JsonKind.Array => ArrayReaderName(parameter.ElementKind) + "(" + element + ")",
-        _ => PrimitiveReader(parameter.Kind, element),
-    };
+    // An expression reading the element as the binding's type. Every read validates the JSON value
+    // kind, so a wrong-typed argument becomes a ToolArgumentException the model can see and correct
+    // rather than an unhandled InvalidOperationException out of JsonElement. `what` is a C#
+    // string-literal expression naming what is being bound, used only in failure messages.
+    private static string Reader(ToolModel model, ParameterModel parameter, string element, string what) =>
+        parameter.Kind switch
+        {
+            JsonKind.Enum => $"{EnumParserName(parameter.EnumType!)}({element}, {what})",
+            JsonKind.Object => $"{model.Pocos[parameter.PocoIndex].BinderName}({element}, {what})",
+            JsonKind.Array => $"{ArrayReaderName(parameter.ElementKind)}({element}, {what})",
+            _ => PrimitiveReader(parameter.Kind, element, what),
+        };
 
-    private static string PrimitiveReader(JsonKind kind, string element) => kind switch
+    private static string PrimitiveReader(JsonKind kind, string element, string what, string index = "") =>
+        $"global::Emissary.ToolArguments.{CoercionName(kind)}({element}, {what}{index})";
+
+    private static string CoercionName(JsonKind kind) => kind switch
     {
-        JsonKind.String => element + ".GetString()!",
-        JsonKind.Bool => element + ".GetBoolean()",
-        JsonKind.Int => element + ".GetInt32()",
-        JsonKind.Long => element + ".GetInt64()",
-        _ => element + ".GetDouble()",
+        JsonKind.String => "ReadString",
+        JsonKind.Bool => "ReadBool",
+        JsonKind.Int => "ReadInt32",
+        JsonKind.Long => "ReadInt64",
+        _ => "ReadDouble",
     };
 
     private static string ReturnConversion(JsonKind kind) => kind switch
@@ -180,8 +189,9 @@ internal static class ToolEmitter
 
     private static void EmitPocoBinder(StringBuilder builder, ToolModel model, PocoModel poco)
     {
-        builder.AppendLine($"    static {poco.FullName} {poco.BinderName}(global::System.Text.Json.JsonElement element)");
+        builder.AppendLine($"    static {poco.FullName} {poco.BinderName}(global::System.Text.Json.JsonElement element, string what)");
         builder.AppendLine("    {");
+        builder.AppendLine("        element = global::Emissary.ToolArguments.ReadObject(element, what);");
 
         foreach (var member in poco.Members)
         {
@@ -189,12 +199,13 @@ internal static class ToolEmitter
             string fallback = member.IsOptional
                 ? member.DefaultLiteral
                 : $"throw new global::Emissary.ToolArgumentException({Literal($"Object '{TrimGlobal(poco.FullName)}' is missing required member '{member.JsonName}'.")})";
+            string memberWhat = Literal($"Object '{TrimGlobal(poco.FullName)}' member '{member.JsonName}'");
 
             builder.AppendLine(
                 $"        {member.DeclaredTypeFullName} __v_{member.CSharpName} = " +
                 $"element.TryGetProperty({Literal(member.JsonName)}, out global::System.Text.Json.JsonElement {element}) " +
                 $"&& {element}.ValueKind != global::System.Text.Json.JsonValueKind.Null " +
-                $"? {Reader(model, member, element)} : {fallback};");
+                $"? {Reader(model, member, element, memberWhat)} : {fallback};");
         }
 
         builder.AppendLine(poco.UsesConstructor
@@ -206,27 +217,33 @@ internal static class ToolEmitter
     private static void EmitEnumParser(StringBuilder builder, INamedTypeSymbol enumType)
     {
         string fullName = enumType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-        builder.AppendLine($"    static {fullName} {EnumParserName(enumType)}(string value) => value switch");
+        var members = SchemaJson.EnumMemberNames(enumType).ToList();
+
+        builder.AppendLine(
+            $"    static {fullName} {EnumParserName(enumType)}(global::System.Text.Json.JsonElement element, string what, int index = -1) => " +
+            "global::Emissary.ToolArguments.ReadString(element, what, index) switch");
         builder.AppendLine("    {");
-        foreach (string member in SchemaJson.EnumMemberNames(enumType))
+        foreach (string member in members)
         {
             builder.AppendLine($"        {Literal(member)} => {fullName}.{member},");
         }
 
-        string message = $"Unknown value '{{0}}' for '{enumType.ToDisplayString()}'.";
-        builder.AppendLine($"        _ => throw new global::Emissary.ToolArgumentException(string.Format(global::System.Globalization.CultureInfo.InvariantCulture, {Literal(message)}, value)),");
+        // The permitted values go in the message, so a model that guesses wrong is told the set.
+        builder.AppendLine(
+            "        var __other => throw global::Emissary.ToolArguments.Unknown(" +
+            $"__other, what, index, {Literal(string.Join(", ", members))}),");
         builder.AppendLine("    };");
     }
 
     private static void EmitArrayReader(StringBuilder builder, JsonKind elementKind)
     {
         string elementType = ElementTypeName(elementKind);
-        builder.AppendLine($"    static {elementType}[] {ArrayReaderName(elementKind)}(global::System.Text.Json.JsonElement element)");
+        builder.AppendLine($"    static {elementType}[] {ArrayReaderName(elementKind)}(global::System.Text.Json.JsonElement element, string what)");
         builder.AppendLine("    {");
         builder.AppendLine($"        var list = new global::System.Collections.Generic.List<{elementType}>();");
-        builder.AppendLine("        foreach (var item in element.EnumerateArray())");
+        builder.AppendLine("        foreach (var item in global::Emissary.ToolArguments.ReadArray(element, what))");
         builder.AppendLine("        {");
-        builder.AppendLine($"            list.Add({PrimitiveReader(elementKind, "item")});");
+        builder.AppendLine($"            list.Add({PrimitiveReader(elementKind, "item", "what", ", list.Count")});");
         builder.AppendLine("        }");
         builder.AppendLine("        return list.ToArray();");
         builder.AppendLine("    }");
