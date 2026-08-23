@@ -125,6 +125,10 @@ if (!eval.Passed) Console.WriteLine(eval.ToText());
 - **Sub-agent composition** — `agent.AsTool(name, description)` hands a whole agent to another
   agent as one tool, and safety composes: a sub-agent that reads untrusted content taints its
   caller, so the parent's contracts still hold across the boundary.
+- **Multi-agent handoff** — `options.Handoffs.Add(new HandoffTarget("billing", billing, "…"))`
+  turns each target into a `handoff_to_billing` tool; calling it transfers the whole conversation,
+  and the target answers under its own prompt, tools, and contracts. Taint crosses the boundary
+  with it, so a transfer can't launder a tainted conversation into privileged tools.
 - **OpenTelemetry GenAI semantic conventions** — `invoke_agent`/`chat`/`execute_tool` spans,
   token and tool-call metrics. `AddSource("Emissary")` and it appears in Aspire.
 - Streaming (`IAsyncEnumerable<AgentEvent>` including thinking deltas), adaptive thinking and

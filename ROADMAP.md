@@ -153,6 +153,18 @@ Conventions: every sample runs against `ANTHROPIC_API_KEY` from the environment 
 each defaults to the current recommended Claude model via one shared constant; 04–06 must run fully
 offline via replay so readers without an API key still get a working experience.
 
+## Shipped since 0.1.0-preview.2
+
+Phases 0–7 are complete; work now lands as one focused feature per PR, each held to the same
+100% coverage, AOT, and docs bar.
+
+1. **Tool result truncation** — `[ClaudeTool(MaxResultLength = N)]` keeps an oversized tool result
+   from blowing the context window, telling the model what was cut.
+2. **Streaming structured outputs** — `StreamAsync<T>` deserializes the partial JSON of an
+   in-flight response, so a UI can render a typed object as it is written.
+3. **Multi-agent handoff** — `AgentOptions.Handoffs` transfers a whole conversation to another
+   agent, carrying accumulated taint across the boundary.
+
 ## Post-1.0 backlog (in order)
 
 1. Model-upgrade canarying as a product (golden suites vs. new models, Batch API overnight runs).

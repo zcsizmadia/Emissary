@@ -86,6 +86,21 @@ public sealed class AgentOptions
     public ToolRules Rules { get; } = new();
 
     /// <summary>
+    /// Agents this one may transfer the conversation to. Each target becomes a
+    /// <c>handoff_to_{name}</c> tool; calling it hands the conversation over (see
+    /// <see cref="HandoffTarget"/>). Read once when the <see cref="ClaudeAgent"/> is constructed,
+    /// so every target must already exist — handoff graphs are acyclic.
+    /// </summary>
+    public IList<HandoffTarget> Handoffs { get; } = [];
+
+    /// <summary>
+    /// How many transfers a single run may make, so a long chain of agents each transferring
+    /// onward terminates. Default 3. Counted across the whole run, and checked against the
+    /// options of the agent about to transfer.
+    /// </summary>
+    public int MaxHandoffs { get; set; } = 3;
+
+    /// <summary>
     /// Decides which policy-gated tools ([AuthorizeTool]) the caller may use. Unauthorized tools
     /// are removed before prompt construction. With no authorizer, policy-gated tools are denied.
     /// </summary>
