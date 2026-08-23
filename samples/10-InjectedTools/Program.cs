@@ -43,6 +43,10 @@ foreach (var (tenant, question) in new[]
 
     var options = new AgentOptions
     {
+        // Capped so a demo run costs a fraction of a cent, and a stuck run stops (SampleBudget).
+        Model = SampleBudget.Model,
+        MaxTurns = SampleBudget.MaxTurns,
+        TokenBudget = SampleBudget.TokenBudget,
         SystemPrompt =
             "You are an order-support agent. Look orders up with the tool rather than guessing, " +
             "and answer in one or two sentences.",

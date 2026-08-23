@@ -4,6 +4,10 @@ using TypedOutputs;
 
 var agent = new ClaudeAgent(new AgentOptions
 {
+    // Capped so a demo run costs a fraction of a cent, and a stuck run stops (SampleBudget).
+    Model = SampleBudget.Model,
+    MaxTurns = SampleBudget.MaxTurns,
+    TokenBudget = SampleBudget.TokenBudget,
     SystemPrompt = "Extract structured data faithfully.",
     // The compile-time strict schema from the [ClaudeSchema] record below.
     OutputSchemaJson = TicketTriage.JsonSchema,

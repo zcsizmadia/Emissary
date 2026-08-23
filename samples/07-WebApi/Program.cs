@@ -6,6 +6,8 @@ var builder = WebApplication.CreateSlimBuilder(args);
 
 builder.Services.AddEmissary(options =>
 {
+    // Capped so a demo run costs a fraction of a cent, and a stuck run stops (SampleBudget).
+    SampleBudget.Constrain(options);
     options.SystemPrompt = "You are a store support agent. Look up orders before refunding.";
     options.Tools.Add(SupportTools.LookupOrderTool);
     options.Tools.Add(SupportTools.RefundPaymentTool);

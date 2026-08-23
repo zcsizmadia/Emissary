@@ -13,6 +13,10 @@ if (Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY") is { Length: > 0 })
 {
     options.Agent = new ClaudeAgent(new AgentOptions
     {
+        // Capped so a demo run costs a fraction of a cent, and a stuck run stops (SampleBudget).
+        Model = SampleBudget.Model,
+        MaxTurns = SampleBudget.MaxTurns,
+        TokenBudget = SampleBudget.TokenBudget,
         SystemPrompt = "You are a concise assistant.",
         Tools = { DemoTools.RollDiceTool, DemoTools.ConvertTemperatureTool },
     });
