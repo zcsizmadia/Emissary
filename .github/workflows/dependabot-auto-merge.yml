@@ -1,7 +1,8 @@
 name: Dependabot auto-merge
 
-# Merges Dependabot's grouped minor and patch bumps once every other check on the commit has
-# passed. Major bumps are never merged here — they get read by a human.
+# Merges Dependabot's grouped bumps once every other check on the commit has passed:
+# GitHub Actions bumps of any kind, and minor/patch bumps of everything else. A NuGet major is
+# left for a human, because it ships to whoever installs Emissary.
 #
 # Why this waits for checks itself, instead of `gh pr merge --auto`: GitHub's native auto-merge
 # only waits for status checks that a branch protection rule marks as *required*. `main` has no
@@ -34,21 +35,45 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # For a grouped pull request this reports the highest bump in the group, so a group that
-      # happens to contain a major is left alone as a whole.
+      # Two policies, because the two ecosystems fail differently:
+      #
+      #   GitHub Actions — any bump, majors included. A workflow action is build infrastructure: if
+      #   a new major misbehaves, CI goes red here and nothing reaches a consumer of the packages.
+      #   The check gate below is the whole safety argument.
+      #
+      #   Everything else (NuGet) — minor and patch only. A dependency major ships to whoever
+      #   installs Emissary, so it gets read first.
+      #
+      # For a grouped pull request the metadata reports the highest bump in the group, so a NuGet
+      # group that happens to contain a major is left alone as a whole.
       - name: Decide
         id: decide
         env:
           UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+          ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
         run: |
-          case "$UPDATE_TYPE" in
-            version-update:semver-patch|version-update:semver-minor)
-              echo "merge=true" >> "$GITHUB_OUTPUT"
-              echo "::notice::$UPDATE_TYPE — will merge once checks pass." ;;
+          allow=false
+          case "$ECOSYSTEM" in
+            # Accept both spellings; the metadata action has used each.
+            github_actions|github-actions)
+              allow=true
+              reason="GitHub Actions bump ($UPDATE_TYPE) — CI is the gate" ;;
             *)
-              echo "merge=false" >> "$GITHUB_OUTPUT"
-              echo "::notice::$UPDATE_TYPE — leaving open for review." ;;
+              case "$UPDATE_TYPE" in
+                version-update:semver-patch|version-update:semver-minor)
+                  allow=true
+                  reason="$ECOSYSTEM $UPDATE_TYPE" ;;
+                *)
+                  reason="$ECOSYSTEM $UPDATE_TYPE needs a human" ;;
+              esac ;;
           esac
+
+          echo "merge=$allow" >> "$GITHUB_OUTPUT"
+          if [ "$allow" = "true" ]; then
+            echo "::notice::$reason — will merge once checks pass."
+          else
+            echo "::notice::$reason — leaving open for review."
+          fi
 
       - name: Wait for the other checks on this commit
         if: steps.decide.outputs.merge == 'true'

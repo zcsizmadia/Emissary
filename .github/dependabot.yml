@@ -36,10 +36,9 @@ updates:
       - "dependencies"
       - "github-actions"
     groups:
-      # Same treatment as NuGet: grouped, auto-merged on green, majors reviewed by hand.
+      # Every bump in one pull request, majors included — an action is build infrastructure, so a
+      # bad one turns CI red here and never reaches anyone installing the packages.
+      # workflows/dependabot-auto-merge.yml merges this group on green whatever the bump.
       github-actions:
         patterns:
           - "*"
-        update-types:
-          - "minor"
-          - "patch"
