@@ -14,6 +14,29 @@ public sealed class ToolRules
     internal Dictionary<string, int> Limits { get; } = new(StringComparer.Ordinal);
 
     /// <summary>
+    /// Every tool name these rules mention, so an agent can reject a contract that names a tool it
+    /// does not have — a typo would otherwise leave the contract silently unenforced.
+    /// </summary>
+    internal IEnumerable<string> ReferencedTools()
+    {
+        foreach (var (tool, prerequisite) in Prerequisites)
+        {
+            yield return tool;
+            yield return prerequisite;
+        }
+
+        foreach (string tool in Terminals)
+        {
+            yield return tool;
+        }
+
+        foreach (string tool in Limits.Keys)
+        {
+            yield return tool;
+        }
+    }
+
+    /// <summary>
     /// The tool may only run after a prior <b>successful</b> call to
     /// <paramref name="prerequisite"/> — e.g. <c>refund_payment</c> requires
     /// <c>verify_identity</c>. Calls in the same parallel batch as the prerequisite do not count.

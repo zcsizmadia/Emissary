@@ -148,6 +148,7 @@ Each lands with the phase that makes it buildable and becomes part of that phase
 | `07-WebApi` | ASP.NET Core SSE hosting, HITL gate with durable pause + webhook resume, AOT container | Phase 6 |
 | `08-McpServer` | Agent-as-MCP-server, callable from Claude Code / Claude Desktop | Phase 6 |
 | `09-AspireDashboard` | Aspire app model: live traces, token flow, cache hit rate on the dashboard | Phase 7 |
+| `10-InjectedTools` | Instance tools resolved from DI: scoped dependencies, per-tenant state, direct invocation | post-preview.2 |
 
 Conventions: every sample runs against `ANTHROPIC_API_KEY` from the environment (never hardcoded);
 each defaults to the current recommended Claude model via one shared constant; 04–06 must run fully
@@ -173,6 +174,8 @@ Phases 0–7 are complete; work now lands as one focused feature per PR, each he
 6. **Instance tools** — `[ClaudeTool]` on an instance method emits an instance `{Method}Tool`
    property bound to that object, so tools can hold injected dependencies. `EMS005` is retired;
    `EMS012` replaces it, catching a tool and compensator that differ in static-ness.
+7. **Contract validation at construction** — an agent whose `Rules` name a tool it does not have
+   throws instead of running with a silently unenforceable safety contract.
 
 ## Post-1.0 backlog (in order)
 
