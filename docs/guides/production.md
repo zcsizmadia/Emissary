@@ -39,6 +39,48 @@ Transient failures (HTTP errors, timeouts, rate limits, overloaded/5xx) are retr
 exponential backoff. Retries only happen while establishing the stream — once output has started
 it is never re-issued — and genuine caller cancellation is never retried.
 
+## When a tool fails
+
+`options.Resilience` covers calls to the API. `options.ToolFailures` covers *your* tools, which
+also fail: a locked row, a 503 from a payment gateway, a query that never returns.
+
+```csharp
+options.ToolFailures.Timeout = TimeSpan.FromSeconds(30);
+```
+
+By default a handler that throws does not end the run. The model is told the tool failed and can
+retry, try something else, or explain the problem to the user — the conversation, the token
+accounting, and the contract state all survive. A tool that exceeds `Timeout` is cancelled (its
+`CancellationToken` is signalled) and reported the same way. Cancelling the run yourself is *not* a
+tool failure: that still surfaces as `OperationCanceledException`.
+
+What the model is told is deliberately thinner than what you get:
+
+```text
+Tool 'charge_card' failed with HttpRequestException.
+```
+
+The exception's **message is withheld by default**, because messages carry connection strings, file
+paths, SQL, and record data — and everything the model sees is sent to the API and may be repeated
+in its reply to your user ([ADR 0007](../adr/0007-tool-failure-disclosure.md)). You still get the
+exception in full:
+
+```csharp
+foreach (var failure in result.ToolFailures)
+{
+    logger.LogError(failure.Exception, "{Tool} failed (timeout: {TimedOut})",
+        failure.ToolName, failure.TimedOut);
+}
+```
+
+Streaming runs get an `AgentToolFailedEvent` as it happens, and the `execute_tool` activity records
+`error.type` plus the message. Set `IncludeExceptionMessage = true` when the messages are safe and
+the extra context helps the model recover.
+
+A failed call never counts as a success for contracts: `Rules.Require("ship", "charge")` still
+blocks shipping if the charge threw. When a failing tool means the whole run is untrustworthy,
+switch to `ToolFailureMode.Propagate` and handle the exception yourself.
+
 ## Prompt caching and cost
 
 Caching is **on by default** (`PromptCacheMode.Automatic`): breakpoints go after the tool

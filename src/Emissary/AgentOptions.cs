@@ -159,6 +159,12 @@ public sealed class AgentOptions
     public ResilienceOptions Resilience { get; } = new();
 
     /// <summary>
+    /// What happens when a tool handler throws or runs too long. By default the failure is
+    /// reported to the model rather than ending the run (see <see cref="ToolFailureOptions"/>).
+    /// </summary>
+    public ToolFailureOptions ToolFailures { get; } = new();
+
+    /// <summary>
     /// Client-side context compaction, so long conversations survive past the context window.
     /// Disabled until <see cref="CompactionOptions.TriggerInputTokens"/> is set.
     /// </summary>
