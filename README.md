@@ -44,9 +44,13 @@ safety declaration is inconsistent, **the build fails, not the production run**.
 
 **🛠 The compiler is the safety net.** Tools, structured-output schemas, and argument binders
 are source-generated — no reflection anywhere in the pipeline. Analyzer diagnostics
-(`EMS001`–`EMS010`) catch undescribed tools and parameters, unrepresentable types, broken
+(`EMS001`–`EMS012`) catch undescribed tools and parameters, unrepresentable types, broken
 compensation targets, and safety attributes that would be silently ignored — in the IDE. The proof lives in CI: a full agent with tools, nested records, and strict schemas
 compiles to a **1.5 MB self-contained Native AOT binary** on every commit.
+
+Tools can be static or **instance methods**, so a tool reaches your `DbContext` or `HttpClient`
+straight from the container — the generated `{Method}Tool` is then an instance property bound to
+that object, with no service locator and no static state.
 
 Those generated binders also validate what the model sends: a wrong-typed argument or an invented
 enum value comes back as a precise, model-visible error (*"argument 'left' must be a whole number …

@@ -47,7 +47,23 @@ internal static class ToolEmitter
     private static void EmitToolProperty(StringBuilder builder, ToolModel model)
     {
         builder.AppendLine($"[global::System.CodeDom.Compiler.GeneratedCode(\"Emissary.SourceGenerators\", \"{GeneratorVersion}\")]");
-        builder.AppendLine($"public static global::Emissary.ToolDefinition {model.MethodName}Tool {{ get; }} = new global::Emissary.ToolDefinition(");
+        if (model.IsInstance)
+        {
+            // An instance tool's handler is bound to this instance, so the definition cannot be
+            // built in a field initializer; it is built once on first use instead.
+            string field = $"__emissaryTool_{model.MethodName}";
+            builder.AppendLine($"private global::Emissary.ToolDefinition? {field};");
+            builder.AppendLine();
+            builder.AppendLine($"[global::System.CodeDom.Compiler.GeneratedCode(\"Emissary.SourceGenerators\", \"{GeneratorVersion}\")]");
+            builder.AppendLine(
+                $"public global::Emissary.ToolDefinition {model.MethodName}Tool => " +
+                $"{field} ??= new global::Emissary.ToolDefinition(");
+        }
+        else
+        {
+            builder.AppendLine($"public static global::Emissary.ToolDefinition {model.MethodName}Tool {{ get; }} = new global::Emissary.ToolDefinition(");
+        }
+
         builder.Append("    ").Append(Literal(model.ToolName)).AppendLine(",");
         builder.Append("    ").Append(Literal(model.Description)).AppendLine(",");
         builder.Append("    ").Append(Literal(BuildSchema(model))).AppendLine(",");
@@ -66,7 +82,8 @@ internal static class ToolEmitter
     {
         builder.AppendLine($"[global::System.CodeDom.Compiler.GeneratedCode(\"Emissary.SourceGenerators\", \"{GeneratorVersion}\")]");
         string asyncModifier = model.IsAsync ? "async " : "";
-        builder.AppendLine($"private static {asyncModifier}global::System.Threading.Tasks.ValueTask<string> __EmissaryInvoke_{model.MethodName}(global::System.Text.Json.JsonElement input, global::System.Threading.CancellationToken cancellationToken)");
+        string staticModifier = model.IsInstance ? "" : "static ";
+        builder.AppendLine($"private {staticModifier}{asyncModifier}global::System.Threading.Tasks.ValueTask<string> __EmissaryInvoke_{model.MethodName}(global::System.Text.Json.JsonElement input, global::System.Threading.CancellationToken cancellationToken)");
         builder.AppendLine("{");
 
         foreach (var parameter in model.Parameters)

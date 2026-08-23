@@ -170,7 +170,10 @@ Phases 0–7 are complete; work now lands as one focused feature per PR, each he
    reported to the model without ending the run, with the exception surfaced to the caller and the
    message withheld from the prompt by default.
 
-6. **Contract validation at construction** — an agent whose `Rules` name a tool it does not have
+6. **Instance tools** — `[ClaudeTool]` on an instance method emits an instance `{Method}Tool`
+   property bound to that object, so tools can hold injected dependencies. `EMS005` is retired;
+   `EMS012` replaces it, catching a tool and compensator that differ in static-ness.
+7. **Contract validation at construction** — an agent whose `Rules` name a tool it does not have
    throws instead of running with a silently unenforceable safety contract.
 
 ## Post-1.0 backlog (in order)

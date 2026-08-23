@@ -46,10 +46,10 @@ internal static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
-    public static readonly DiagnosticDescriptor MethodNotStatic = new(
-        id: "EMS005",
-        title: "Tool method must be static",
-        messageFormat: "Tool method '{0}' must be static; instance tools (with dependency injection) arrive in a later phase",
+    public static readonly DiagnosticDescriptor CompensatorStaticnessMismatch = new(
+        id: "EMS012",
+        title: "Compensator must match the tool's static-ness",
+        messageFormat: "CompensatedBy on tool method '{0}' references '{1}', which is {2}; a tool and its compensator must both be static or both be instance methods",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);

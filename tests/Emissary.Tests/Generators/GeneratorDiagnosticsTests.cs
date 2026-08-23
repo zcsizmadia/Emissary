@@ -206,17 +206,39 @@ public sealed class GeneratorDiagnosticsTests
     }
 
     [Test]
-    public async Task EMS005_instance_method_is_an_error()
+    public async Task EMS012_compensator_must_match_the_tools_static_ness()
     {
         var result = GeneratorHarness.Run("""
             public partial class Tools
             {
+                [Emissary.ClaudeTool(Description = "d", CompensatedBy = nameof(Undo))]
+                public string Book(string room) => room;
+
                 [Emissary.ClaudeTool(Description = "d")]
-                public string Echo(string text) => text;
+                public static string Undo(string room) => room;
             }
             """, out _);
 
-        await Assert.That(GeneratorHarness.DiagnosticIds(result)).Contains("EMS005");
+        var diagnostic = result.Diagnostics.Single(d => d.Id == "EMS012");
+        await Assert.That(diagnostic.GetMessage(null)).Contains("'Undo', which is static");
+    }
+
+    [Test]
+    public async Task EMS012_also_catches_a_static_tool_with_an_instance_compensator()
+    {
+        var result = GeneratorHarness.Run("""
+            public partial class Tools
+            {
+                [Emissary.ClaudeTool(Description = "d", CompensatedBy = nameof(Undo))]
+                public static string Book(string room) => room;
+
+                [Emissary.ClaudeTool(Description = "d")]
+                public string Undo(string room) => room;
+            }
+            """, out _);
+
+        var diagnostic = result.Diagnostics.Single(d => d.Id == "EMS012");
+        await Assert.That(diagnostic.GetMessage(null)).Contains("which is an instance method");
     }
 
     [Test]
