@@ -62,7 +62,8 @@ Tool 'charge_card' failed with HttpRequestException.
 
 The exception's **message is withheld by default**, because messages carry connection strings, file
 paths, SQL, and record data — and everything the model sees is sent to the API and may be repeated
-in its reply to your user. You still get the exception in full:
+in its reply to your user ([ADR 0007](../adr/0007-tool-failure-disclosure.md)). You still get the
+exception in full:
 
 ```csharp
 foreach (var failure in result.ToolFailures)
