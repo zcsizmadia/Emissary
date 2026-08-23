@@ -61,7 +61,9 @@ corrects itself on the next turn instead of the run dying on an exception.
 agent can't do X?"* is enforced machinery, all model-visible so Claude self-corrects:
 
 - **Tool contracts** — `Rules.Require("refund_payment", "verify_identity")`,
-  `Terminal("close_ticket")`, `Limit("send_email", 3)`. Violating calls never execute.
+  `Terminal("close_ticket")`, `Limit("send_email", 3)`. Violating calls never execute, and a
+  contract naming a tool the agent doesn't have throws at construction — a typo must not leave a
+  privileged tool quietly unguarded.
 - **Taint tracking** — output from `Untrusted` tools (web pages, documents, email) taints the
   run; `Privileged` tools are then blocked. Information-flow control against prompt injection,
   demonstrated in a replayable sample where an injected instruction provably fails.
@@ -84,7 +86,8 @@ EmissaryAssert.That(result)
     .ToolCalled("refund_payment", times: 1)
     .ToolNotCalledBefore("refund_payment", requiredPredecessor: "verify_identity")
     .NotTainted()
-    .Stopped(AgentStopReason.Completed);
+    .NoToolFailures()   // a tool that started throwing — the model narrates around it
+    .Complete();        // a truncated, refused, or paused answer reads the same as a good one
 ```
 
 Golden trajectories run in CI as regression suites — Emissary's own test suite is the first
@@ -128,8 +131,12 @@ if (!eval.Passed) Console.WriteLine(eval.ToText());
   the model is told only the exception type — messages carry connection strings and record data,
   and everything the model sees goes to the API
   ([ADR 0007](docs/adr/0007-tool-failure-disclosure.md)).
+- **Bounded tool concurrency** — `options.MaxParallelTools` caps how many of a turn's tool calls
+  run at once, so a model that asks for a dozen lookups can't drain a connection pool the rest of
+  the application shares. Results still come back in `tool_use` order.
 - **Web search** — `options.WebSearch = new WebSearchOptions { MaxUses = 3 }` turns on Claude's
-  server-side search (with domain allow/block lists).
+  server-side search (with domain allow/block lists), with a documented
+  [single-turn limitation](docs/guides/tools.md#web-search-is-single-turn-for-now).
 - **Durable chat sessions** — `ConversationSession` persists history by conversation id through
   `IConversationStore` (in-memory or SQLite), so a chatbot resumes across requests and restarts.
 - **Token budgets and dollar costs** — hard token caps that stop a run before the next model
