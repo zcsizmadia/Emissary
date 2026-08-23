@@ -36,6 +36,15 @@ jobs:
           dotnet tool restore
           dotnet docfx docs/docfx.json --warningsAsErrors
 
+      # Turns Pages on for the repository if it is not already, so the deploy job below has
+      # somewhere to publish to. Without this the first deploy 404s until someone enables Pages
+      # by hand in Settings.
+      - name: Configure Pages
+        if: github.ref == 'refs/heads/main'
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
       - name: Upload artifact
         if: github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v4
@@ -43,8 +52,8 @@ jobs:
           path: docs/_site
 
   deploy:
-    # Publishing requires GitHub Pages to be enabled for the repository with "GitHub Actions"
-    # as the source (Settings → Pages). Until then this job simply fails without affecting CI.
+    # The build job enables Pages via the API, so this normally just works. If your organization
+    # blocks that, enable it once by hand: Settings → Pages → Source: GitHub Actions.
     if: github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
