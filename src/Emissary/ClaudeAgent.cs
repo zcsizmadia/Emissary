@@ -96,6 +96,73 @@ public sealed class ClaudeAgent
     }
 
     /// <summary>
+    /// Streams a structured answer as it is generated: each item is the best-known partial value,
+    /// filled in further with every chunk, and the last item is the complete answer. Pair with
+    /// <see cref="AgentOptions.WithOutput{T}"/> so the model is constrained to the schema.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Chunks that do not yet form a deserializable value — a half-written property name, a
+    /// partially spelled enum — are skipped rather than surfaced, so every item you receive is
+    /// a deserializable <typeparamref name="T"/>.
+    /// </para>
+    /// <para>
+    /// <b>A partial is a progress snapshot, not a validated value.</b> Properties that have not
+    /// arrived yet are <see langword="null"/> or <see langword="default"/> <i>even when the type
+    /// declares them non-nullable</i>, and a string property may hold only the part received so
+    /// far. Guard against nulls when rendering partials, and use the final item (or
+    /// <see cref="RunAsync{T}"/>) when you need the whole answer.
+    /// </para>
+    /// </remarks>
+    /// <typeparam name="T">The structured output type.</typeparam>
+    /// <param name="userInput">The user's text.</param>
+    /// <param name="typeInfo">Source-generated serializer metadata for <typeparamref name="T"/>.</param>
+    /// <param name="cancellationToken">Cancels the run.</param>
+    public async IAsyncEnumerable<T> StreamAsync<T>(
+        string userInput,
+        System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(typeInfo);
+
+        var buffer = new System.Text.StringBuilder();
+        await foreach (var agentEvent in StreamAsync(userInput, cancellationToken).ConfigureAwait(false))
+        {
+            if (agentEvent is not AgentTextEvent text)
+            {
+                continue;
+            }
+
+            buffer.Append(text.Delta);
+            if (PartialJson.TryComplete(buffer.ToString()) is { } json
+                && TryDeserialize(json, typeInfo, out T? partial))
+            {
+                yield return partial;
+            }
+        }
+    }
+
+    private static bool TryDeserialize<T>(
+        string json,
+        System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo,
+        out T value)
+    {
+        try
+        {
+            // A partial document can be valid JSON yet not a valid T — for example an enum
+            // property whose name is still being spelled out.
+            var deserialized = System.Text.Json.JsonSerializer.Deserialize(json, typeInfo);
+            value = deserialized!;
+            return deserialized is not null;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            value = default!;
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Exposes this whole agent as a single tool for another agent — the composition primitive
     /// for sub-agent hierarchies. The tool takes a <c>message</c> and returns the sub-agent's
     /// final answer. Safety composes conservatively: the tool is marked

@@ -84,6 +84,27 @@ var triage = await agent.RunAsync("Triage this report: …", MyJsonContext.Defau
 Deserialization goes through System.Text.Json source generation, so the whole path — schema,
 API, result — is reflection-free.
 
+### Streaming a structured answer
+
+For a UI that should fill in as the model writes, stream the value instead of awaiting it:
+
+```csharp
+await foreach (var partial in agent.StreamAsync("Triage this…", MyJsonContext.Default.TicketTriage))
+{
+    Render(partial);   // title appears first, then severity, then tags
+}
+```
+
+Emissary completes the partially received JSON on each chunk, so you get a real
+`TicketTriage` rather than raw text. Chunks that are not yet deserializable — a half-written
+property name, a partially spelled enum — are skipped.
+
+> [!IMPORTANT]
+> A partial is a **progress snapshot, not a validated value**: properties that have not arrived
+> yet are `null`/`default` *even where the type declares them non-nullable*, and a string may
+> hold only the part received so far. Guard against nulls when rendering, and use the final item
+> (or `RunAsync<T>`) when you need the whole answer.
+
 ## Diagnostics
 
 | Id | Severity | Meaning |
