@@ -146,6 +146,73 @@ public sealed class AgentRunExpectations
             ? "(none)"
             : string.Join(", ", _result.PlannedEffects.Select(e => e.ToolName));
 
+    /// <summary>
+    /// A tool must have failed during the run — its handler threw and the failure was reported to
+    /// the model rather than ending the run.
+    /// </summary>
+    /// <param name="toolName">The wire name of the tool expected to have failed.</param>
+    public AgentRunExpectations ToolFailed(string toolName)
+    {
+        if (!_result.ToolFailures.Any(f => f.ToolName == toolName))
+        {
+            throw Failure($"expected tool '{toolName}' to have failed, but the failures were: {DescribeFailures()}.");
+        }
+
+        return this;
+    }
+
+    /// <summary>
+    /// A tool must have been cancelled for exceeding
+    /// <see cref="ToolFailureOptions.Timeout"/> — distinct from a tool that threw.
+    /// </summary>
+    /// <param name="toolName">The wire name of the tool expected to have timed out.</param>
+    public AgentRunExpectations ToolTimedOut(string toolName)
+    {
+        if (!_result.ToolFailures.Any(f => f.ToolName == toolName && f.TimedOut))
+        {
+            throw Failure($"expected tool '{toolName}' to have timed out, but the failures were: {DescribeFailures()}.");
+        }
+
+        return this;
+    }
+
+    /// <summary>
+    /// No tool may have failed. Worth asserting on a golden run: a tool that starts throwing is
+    /// otherwise invisible, because the model narrates its way around the failure.
+    /// </summary>
+    public AgentRunExpectations NoToolFailures()
+    {
+        if (_result.ToolFailures.Count > 0)
+        {
+            throw Failure($"expected no tool failures, but got: {DescribeFailures()}.");
+        }
+
+        return this;
+    }
+
+    /// <summary>
+    /// The run must have produced a complete answer: <see cref="AgentStopReason.Completed"/>. Fails
+    /// on every reason that leaves the answer cut short — a truncated response, a refusal, a paused
+    /// turn, an exhausted budget or turn limit, or a run waiting for approval — and names it.
+    /// </summary>
+    public AgentRunExpectations Complete()
+    {
+        if (_result.StopReason != AgentStopReason.Completed)
+        {
+            throw Failure(
+                $"expected a complete answer, but the run stopped with {_result.StopReason}, "
+                + "so the final text is not the whole answer.");
+        }
+
+        return this;
+    }
+
+    private string DescribeFailures() =>
+        _result.ToolFailures.Count == 0
+            ? "(none)"
+            : string.Join(", ", _result.ToolFailures.Select(
+                f => $"{f.ToolName}: {f.Exception.GetType().Name}{(f.TimedOut ? " (timed out)" : "")}"));
+
     /// <summary>The final assistant text must contain this fragment (ordinal comparison).</summary>
     /// <param name="expected">The expected fragment.</param>
     public AgentRunExpectations FinalTextContains(string expected)

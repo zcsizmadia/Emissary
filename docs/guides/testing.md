@@ -41,6 +41,20 @@ EmissaryAssert.That(result)
 
 These assert what the agent *did*, which is stable, rather than what it *said*, which is not.
 
+Two of them are worth putting on every golden run, because what they catch is otherwise invisible:
+
+```csharp
+EmissaryAssert.That(result)
+    .NoToolFailures()   // a tool that starts throwing — the model narrates around it
+    .Complete();        // a truncated, refused, or paused answer — FinalText looks fine either way
+```
+
+A failing tool is reported to the model, which then explains itself politely, so a run whose
+database is down can still look successful in the transcript. `NoToolFailures()` names the
+exceptions; `ToolFailed("charge_card")` and `ToolTimedOut("slow_report")` assert the opposite when a
+failure is the thing under test. `Complete()` fails on every stop reason that leaves the answer cut
+short and says which one it was.
+
 ## Model-upgrade canarying
 
 The question every team dreads — *what changes when we upgrade the model?* — becomes a diff:
