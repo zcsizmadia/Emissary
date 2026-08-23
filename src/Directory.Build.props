@@ -12,6 +12,7 @@
     <Description>Production-grade Claude agents for .NET — AOT-compiled, zero-trust, observable.</Description>
     <PackageTags>claude;anthropic;agents;ai;aot</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
     <PackageProjectUrl>https://github.com/zcsizmadia/Emissary</PackageProjectUrl>
     <RepositoryUrl>https://github.com/zcsizmadia/Emissary</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
@@ -36,6 +37,7 @@
   <ItemGroup>
     <PackageReference Include="MinVer" PrivateAssets="all" />
     <None Include="$(RepoRoot)README.md" Pack="true" PackagePath="\" />
+    <None Include="$(RepoRoot)assets\icon.png" Pack="true" PackagePath="\" Visible="false" />
   </ItemGroup>
 
 </Project>

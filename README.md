@@ -1,3 +1,5 @@
+<img src="assets/emissary-mark.svg" alt="" width="96" align="left" hspace="18" vspace="4">
+
 # Emissary
 
 **Production-grade Claude agents for .NET — compile-time verified, provably safe, Native AOT.**
