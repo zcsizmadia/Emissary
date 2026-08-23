@@ -167,6 +167,10 @@ Phases 0–7 are complete; work now lands as one focused feature per PR, each he
 4. **Argument validation in generated binders** — a wrong-typed or unknown-enum argument becomes a
    model-visible error result naming what was expected, instead of an unhandled exception.
 
+6. **Instance tools** — `[ClaudeTool]` on an instance method emits an instance `{Method}Tool`
+   property bound to that object, so tools can hold injected dependencies. `EMS005` is retired;
+   `EMS012` replaces it, catching a tool and compensator that differ in static-ness.
+
 ## Post-1.0 backlog (in order)
 
 1. Model-upgrade canarying as a product (golden suites vs. new models, Batch API overnight runs).

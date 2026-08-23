@@ -60,5 +60,12 @@ internal sealed class ToolModel
     public JsonKind ReturnKind;
     public bool IsAsync;
 
+    /// <summary>
+    /// The tool method is an instance method, so the generated <c>{Method}Tool</c> is an instance
+    /// property whose handler is bound to <c>this</c> — the seam for tools with injected
+    /// dependencies.
+    /// </summary>
+    public bool IsInstance;
+
     public bool HasErrors => Diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error);
 }
