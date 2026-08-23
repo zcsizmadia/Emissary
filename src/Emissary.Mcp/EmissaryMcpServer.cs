@@ -64,38 +64,63 @@ public sealed class EmissaryMcpServer
 
     internal async Task<JsonNode?> HandleLineAsync(string line, CancellationToken cancellationToken)
     {
-        JsonNode? request;
+        JsonNode? parsed;
         try
         {
-            request = JsonNode.Parse(line);
+            parsed = JsonNode.Parse(line);
         }
         catch (JsonException)
         {
             return Error(null, -32700, "Parse error.");
         }
 
-        JsonNode? id = request?["id"];
-        string method = request?["method"]?.GetValue<string>() ?? "";
+        // JsonNode's indexer throws for arrays and scalars, so anything that is not an object has
+        // to be rejected before a member is read. A batch (a JSON array) is legal JSON-RPC that this
+        // server does not implement; previously it — and any bare scalar — threw out of the read
+        // loop and killed the process, taking the whole session with it.
+        if (parsed is not JsonObject request)
+        {
+            return Error(null, -32600, "Invalid request: expected a single JSON-RPC request object.");
+        }
+
+        JsonNode? id = request["id"];
+        string method = AsString(request["method"]) ?? "";
 
         if (method.StartsWith("notifications/", StringComparison.Ordinal) || id is null)
         {
             return null;
         }
 
-        // A non-null id implies a non-null request (the id was read from it).
-        return method switch
+        try
         {
-            "initialize" => Result(id, new JsonObject
+            return method switch
             {
-                ["protocolVersion"] = request!["params"]?["protocolVersion"]?.GetValue<string>() ?? ProtocolVersion,
-                ["capabilities"] = new JsonObject { ["tools"] = new JsonObject() },
-                ["serverInfo"] = new JsonObject { ["name"] = _options.Name, ["version"] = _options.Version },
-            }),
-            "tools/list" => Result(id, new JsonObject { ["tools"] = DescribeTools() }),
-            "tools/call" => await CallToolAsync(id, request?["params"], cancellationToken).ConfigureAwait(false),
-            _ => Error(id, -32601, $"Unknown method '{method}'."),
-        };
+                "initialize" => Result(id, new JsonObject
+                {
+                    ["protocolVersion"] = AsString((request["params"] as JsonObject)?["protocolVersion"])
+                        ?? ProtocolVersion,
+                    ["capabilities"] = new JsonObject { ["tools"] = new JsonObject() },
+                    ["serverInfo"] = new JsonObject { ["name"] = _options.Name, ["version"] = _options.Version },
+                }),
+
+                // The spec requires a response; an empty result is the whole of it.
+                "ping" => Result(id, new JsonObject()),
+                "tools/list" => Result(id, new JsonObject { ["tools"] = DescribeTools() }),
+                "tools/call" => await CallToolAsync(id, request["params"] as JsonObject, cancellationToken)
+                    .ConfigureAwait(false),
+                _ => Error(id, -32601, $"Unknown method '{method}'."),
+            };
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            // One malformed request must cost one response, never the session.
+            return Error(id, -32603, $"Internal error handling '{method}': {exception.GetType().Name}.");
+        }
     }
+
+    /// <summary>Reads a node as a string, or <see langword="null"/> if it is any other JSON kind.</summary>
+    private static string? AsString(JsonNode? node) =>
+        node is JsonValue value && value.TryGetValue(out string? text) ? text : null;
 
     private JsonArray DescribeTools()
     {
@@ -131,16 +156,16 @@ public sealed class EmissaryMcpServer
         return tools;
     }
 
-    private async Task<JsonNode> CallToolAsync(JsonNode id, JsonNode? parameters, CancellationToken cancellationToken)
+    private async Task<JsonNode> CallToolAsync(JsonNode id, JsonObject? parameters, CancellationToken cancellationToken)
     {
-        string name = parameters?["name"]?.GetValue<string>() ?? "";
-        JsonNode arguments = parameters?["arguments"] ?? new JsonObject();
+        string name = AsString(parameters?["name"]) ?? "";
+        JsonObject arguments = parameters?["arguments"] as JsonObject ?? new JsonObject();
 
         try
         {
             if (_options.Agent is not null && name == _options.AgentToolName)
             {
-                string? message = arguments["message"]?.GetValue<string>();
+                string? message = AsString(arguments["message"]);
                 if (string.IsNullOrEmpty(message))
                 {
                     return ToolResult(id, "The 'message' argument is required.", isError: true);
@@ -168,7 +193,11 @@ public sealed class EmissaryMcpServer
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            return Error(id, -32603, exception.Message);
+            // A tool that throws is a failed tool call, not a broken protocol: the spec wants an
+            // isError result so the calling model can react, and -32603 gave it none. The type
+            // rather than the message, for the reason in ADR 0007 — this text lands in a model's
+            // context, and exception messages carry connection strings and record data.
+            return ToolResult(id, $"Tool '{name}' failed with {exception.GetType().Name}.", isError: true);
         }
     }
 
