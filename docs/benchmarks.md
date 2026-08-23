@@ -11,11 +11,17 @@ dotnet run --project benchmarks/Emissary.Benchmarks -c Release -- --filter '*'
 
 | Benchmark | Mean | Allocated |
 |---|---:|---:|
-| `DispatchTool` — bind JSON args, invoke, convert result (full generated dispatch path) | **~153 ns** | 112 B |
+| `DispatchTool` — validate and bind JSON args, invoke, convert result (full generated dispatch path) | **~150 ns** | 112 B |
 | `SchemaAccess` — read a tool's JSON Schema | **~0.4 ns** | 0 B |
 
 The schema is a compile-time constant; dispatch is a handful of `JsonElement` reads and a
 delegate call. There is no reflection to warm up and nothing to cache.
+
+That figure now includes [argument validation](guides/tools.md#when-the-model-sends-the-wrong-type) —
+every bound value is checked against its declared type before it is read. Re-measured after adding
+it: ~150 ns against ~153 ns before, with allocation unchanged at 112 B. So the check that turns a
+wrong-typed argument into a repairable error instead of a dead run is free, which is why it is not
+optional.
 
 ## Record/replay machinery
 
