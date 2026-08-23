@@ -312,7 +312,8 @@ public sealed class ClaudeAgent
                 var tool = Array.Find(_activeTools, t => t.Name == pendingCall.ToolName);
                 var toolUse = new ToolUseBlock(pendingCall.ToolUseId, pendingCall.ToolName, pendingCall.Input);
                 var (executed, failure) = await ExecuteToolAsync(
-                    tool, violation: null, shadow: false, toolUse, cancellationToken).ConfigureAwait(false);
+                    tool, violation: null, shadow: false, toolUse, throttle: null, cancellationToken)
+                    .ConfigureAwait(false);
                 result = executed;
                 if (failure is not null)
                 {
@@ -696,6 +697,7 @@ public sealed class ClaudeAgent
         var pending = new List<PlannedEffect>();
         var tools = new ToolDefinition?[toolUses.Length];
         var tasks = new Task<(ToolResultBlock Result, ToolFailure? Failure)>?[toolUses.Length];
+        using var throttle = _options.MaxParallelTools is { } max ? new SemaphoreSlim(max, max) : null;
         for (int i = 0; i < toolUses.Length; i++)
         {
             tools[i] = Array.Find(_activeTools, t => t.Name == toolUses[i].Name);
@@ -718,7 +720,7 @@ public sealed class ClaudeAgent
                 plannedEffects.Add(new PlannedEffect(toolUses[i].Name, toolUses[i].Id, toolUses[i].Input));
             }
 
-            tasks[i] = ExecuteToolAsync(tools[i], violation, shadow, toolUses[i], cancellationToken);
+            tasks[i] = ExecuteToolAsync(tools[i], violation, shadow, toolUses[i], throttle, cancellationToken);
         }
 
         var results = new ToolResultBlock?[toolUses.Length];
@@ -750,13 +752,31 @@ public sealed class ClaudeAgent
     /// exception returned to the caller) or propagated. The model is told the exception type but not
     /// its message unless that is opted into, because everything the model sees is sent to the API.
     /// </summary>
+    // `throttle` caps how many of a turn's tool calls run at once (AgentOptions.MaxParallelTools),
+    // or is null for no cap. The wait happens before the call's activity starts, so a queued call's
+    // span measures its execution rather than its time in the queue.
     private async Task<(ToolResultBlock Result, ToolFailure? Failure)> ExecuteToolAsync(
         ToolDefinition? tool,
         string? violation,
         bool shadow,
         ToolUseBlock toolUse,
+        SemaphoreSlim? throttle,
         CancellationToken cancellationToken)
     {
+        if (throttle is not null)
+        {
+            await throttle.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                return await ExecuteToolAsync(tool, violation, shadow, toolUse, null, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                throttle.Release();
+            }
+        }
+
         using var activity = EmissaryDiagnostics.Source.StartActivity($"execute_tool {toolUse.Name}");
         EmissaryDiagnostics.Tag(activity, "gen_ai.operation.name", "execute_tool");
         EmissaryDiagnostics.Tag(activity, "gen_ai.tool.name", toolUse.Name);
