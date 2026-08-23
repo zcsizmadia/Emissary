@@ -31,6 +31,70 @@ public sealed class AgentRunExpectationsTests
         };
     }
 
+    private static AgentResult WithFailures(params ToolFailure[] failures) => new()
+    {
+        Conversation = Conversation.Start().Append(Message.User("go")),
+        StopReason = AgentStopReason.Completed,
+        Usage = AgentUsage.Zero,
+        ToolFailures = failures,
+    };
+
+    [Test]
+    public async Task Tool_failure_expectations_pass_and_fail_with_useful_messages()
+    {
+        var clean = Run("echo");
+        var failed = WithFailures(
+            new ToolFailure("t1", "charge_card", new TimeoutException("gone"), TimedOut: false),
+            new ToolFailure("t2", "slow_report", new TaskCanceledException(), TimedOut: true));
+
+        // Passing.
+        await Assert.That(EmissaryAssert.That(clean).NoToolFailures()).IsNotNull();
+        await Assert.That(EmissaryAssert.That(failed).ToolFailed("charge_card").ToolTimedOut("slow_report"))
+            .IsNotNull();
+
+        // Failing, with the actual failures named so the message is actionable.
+        var thrown = Assert.Throws<EmissaryAssertionException>(() => EmissaryAssert.That(failed).NoToolFailures());
+        await Assert.That(thrown!.Message).Contains("charge_card: TimeoutException");
+        await Assert.That(thrown.Message).Contains("slow_report: TaskCanceledException (timed out)");
+
+        await Assert.That(Assert.Throws<EmissaryAssertionException>(
+                () => EmissaryAssert.That(clean).ToolFailed("charge_card"))!.Message)
+            .Contains("(none)");
+
+        // A tool that threw did not time out, and vice versa.
+        await Assert.That(Assert.Throws<EmissaryAssertionException>(
+                () => EmissaryAssert.That(failed).ToolTimedOut("charge_card"))!.Message)
+            .Contains("to have timed out");
+    }
+
+    [Test]
+    [Arguments(AgentStopReason.MaxTokens)]
+    [Arguments(AgentStopReason.Refusal)]
+    [Arguments(AgentStopReason.Paused)]
+    [Arguments(AgentStopReason.TurnLimit)]
+    [Arguments(AgentStopReason.BudgetExceeded)]
+    [Arguments(AgentStopReason.AwaitingApproval)]
+    public async Task Complete_rejects_every_reason_that_cuts_the_answer_short(AgentStopReason stopReason)
+    {
+        var result = new AgentResult
+        {
+            Conversation = Conversation.Start().Append(Message.User("go")),
+            StopReason = stopReason,
+            Usage = AgentUsage.Zero,
+        };
+
+        var thrown = Assert.Throws<EmissaryAssertionException>(() => EmissaryAssert.That(result).Complete());
+
+        await Assert.That(thrown!.Message).Contains(stopReason.ToString());
+        await Assert.That(thrown.Message).Contains("not the whole answer");
+    }
+
+    [Test]
+    public async Task Complete_passes_for_a_finished_run()
+    {
+        await Assert.That(EmissaryAssert.That(Run("echo")).Complete()).IsNotNull();
+    }
+
     [Test]
     public async Task Passing_expectations_chain_fluently()
     {
