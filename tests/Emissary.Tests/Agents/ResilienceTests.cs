@@ -1,5 +1,7 @@
+using System.Net;
 using System.Net.Http;
 using System.Runtime.CompilerServices;
+using Anthropic.Exceptions;
 using Emissary.Transport;
 
 namespace Emissary.Tests;
@@ -48,6 +50,26 @@ file sealed class SlowTransport : IModelTransport
     {
         await Task.Delay(Timeout.Infinite, cancellationToken).ConfigureAwait(false);
         yield break;
+    }
+}
+
+/// <summary>Establishes immediately, then streams until the token it was handed is cancelled.</summary>
+file sealed class EndlessTransport : IModelTransport
+{
+    private readonly TimeSpan _gap;
+
+    public EndlessTransport(TimeSpan gap) => _gap = gap;
+
+    public async IAsyncEnumerable<StreamEvent> StreamAsync(
+        ModelRequest request,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        yield return new StreamTextDelta("first");
+        while (true)
+        {
+            await Task.Delay(_gap, cancellationToken).ConfigureAwait(false);
+            yield return new StreamTextDelta("more");
+        }
     }
 }
 
@@ -210,10 +232,111 @@ public sealed class ResilienceTests
         await Assert.That(ResiliencePolicy.IsTransient(new TimeoutException())).IsTrue();
         await Assert.That(ResiliencePolicy.IsTransient(new OperationCanceledException())).IsFalse();
         await Assert.That(ResiliencePolicy.IsTransient(new InvalidOperationException())).IsFalse();
-        await Assert.That(ResiliencePolicy.IsTransient(new FakeRateLimitException())).IsTrue();
-        await Assert.That(ResiliencePolicy.IsTransient(new FakeOverloadedException())).IsTrue();
-        await Assert.That(ResiliencePolicy.IsTransient(new ServiceUnavailableException())).IsTrue();
-        await Assert.That(ResiliencePolicy.IsTransient(new InternalServerException())).IsTrue();
+    }
+
+    /// <summary>
+    /// Classification asserted against the exceptions the SDK <b>actually</b> throws. The previous
+    /// version of this test used locally declared classes with plausible names, which is why a
+    /// connection failure — <see cref="AnthropicIOException"/>, matching none of the name patterns
+    /// the classifier looked for — went unretried without any test noticing (ADR 0008).
+    /// </summary>
+    [Test]
+    [Arguments(429, true)]   // rate limited
+    [Arguments(529, true)]   // overloaded_error
+    [Arguments(503, true)]   // service unavailable
+    [Arguments(500, true)]   // internal server error
+    [Arguments(408, true)]   // request timeout
+    [Arguments(400, false)]  // invalid_request_error: retrying cannot help
+    [Arguments(401, false)]  // bad credentials
+    [Arguments(404, false)]
+    [Arguments(422, false)]
+    public async Task IsTransient_classifies_real_sdk_api_errors(int statusCode, bool expected)
+    {
+        var exception = new AnthropicApiException("boom", new HttpRequestException("boom"))
+        {
+            StatusCode = (HttpStatusCode)statusCode,
+            ResponseBody = "{}",
+        };
+
+        await Assert.That(ResiliencePolicy.IsTransient(exception)).IsEqualTo(expected);
+    }
+
+    [Test]
+    public async Task A_connection_failure_from_the_sdk_is_transient()
+    {
+        var exception = new AnthropicIOException("connection refused", new HttpRequestException("refused"));
+
+        await Assert.That(ResiliencePolicy.IsTransient(exception)).IsTrue();
+    }
+
+    [Test]
+    public async Task A_malformed_response_from_the_sdk_is_not_transient()
+    {
+        // Bad data will be bad again on the next attempt.
+        await Assert.That(ResiliencePolicy.IsTransient(new AnthropicInvalidDataException("garbage"))).IsFalse();
+    }
+
+    /// <summary>
+    /// Cancelling a run must actually stop the stream. The linked token source created for the
+    /// per-attempt timeout used to be disposed as soon as the stream was established, which
+    /// unlinks it from the caller's token — silently, with no exception — so a cancelled run kept
+    /// reading, kept executing tools, and kept billing until the SDK's own timeout.
+    /// </summary>
+    [Test]
+    [Arguments(true)]
+    [Arguments(false)]
+    public async Task Cancelling_mid_stream_stops_the_stream(bool withRequestTimeout)
+    {
+        var options = Fast(retries: 0);
+        if (withRequestTimeout)
+        {
+            options.RequestTimeout = TimeSpan.FromSeconds(30);
+        }
+
+        var transport = new ResilientTransport(new EndlessTransport(TimeSpan.FromMilliseconds(5)), options);
+        using var cancellation = new CancellationTokenSource();
+
+        async Task Consume()
+        {
+            int seen = 0;
+            await foreach (var _ in transport.StreamAsync(Request(), cancellation.Token))
+            {
+                if (++seen == 3)
+                {
+                    await cancellation.CancelAsync();
+                }
+
+                // Bounded so a regression fails with this message instead of streaming forever.
+                if (seen > 200)
+                {
+                    throw new InvalidOperationException("Cancellation did not stop the stream.");
+                }
+            }
+        }
+
+        await Assert.ThrowsAsync<OperationCanceledException>(Consume);
+    }
+
+    [Test]
+    public async Task The_request_timeout_bounds_establishing_the_stream_not_the_whole_stream()
+    {
+        // The timeout is what the model has to start answering; a long answer is not a failure.
+        var options = Fast(retries: 0);
+        options.RequestTimeout = TimeSpan.FromMilliseconds(80);
+        var transport = new ResilientTransport(new EndlessTransport(TimeSpan.FromMilliseconds(30)), options);
+
+        int seen = 0;
+        using var cancellation = new CancellationTokenSource();
+        await foreach (var _ in transport.StreamAsync(Request(), cancellation.Token))
+        {
+            // Well past the 80 ms timeout by the fifth event, with no cancellation.
+            if (++seen == 5)
+            {
+                break;
+            }
+        }
+
+        await Assert.That(seen).IsEqualTo(5);
     }
 
     [Test]
@@ -228,10 +351,3 @@ public sealed class ResilienceTests
     }
 }
 
-file sealed class FakeRateLimitException : Exception;
-
-file sealed class FakeOverloadedException : Exception;
-
-file sealed class ServiceUnavailableException : Exception;
-
-file sealed class InternalServerException : Exception;

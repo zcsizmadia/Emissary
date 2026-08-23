@@ -13,8 +13,11 @@ permissions:
   pages: write
   id-token: write
 
+# Scoped per ref. A single global group made every open pull request cancel the others' docs
+# check, and a cancelled check reports as a failure -- so a PR could go red because an unrelated
+# one was opened after it. Superseding a push to the *same* branch is still what we want.
 concurrency:
-  group: docs
+  group: docs-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -65,6 +68,11 @@ jobs:
     if: github.ref == 'refs/heads/main' && needs.build.outputs.pages_enabled == 'true'
     needs: build
     runs-on: ubuntu-latest
+    # Deployments to one Pages site must not race, and a deployment in flight is never worth
+    # cancelling — unlike the per-ref build above.
+    concurrency:
+      group: pages-deploy
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
