@@ -48,6 +48,11 @@ are source-generated — no reflection anywhere in the pipeline. Analyzer diagno
 compensation targets, and safety attributes that would be silently ignored — in the IDE. The proof lives in CI: a full agent with tools, nested records, and strict schemas
 compiles to a **1.5 MB self-contained Native AOT binary** on every commit.
 
+Those generated binders also validate what the model sends: a wrong-typed argument or an invented
+enum value comes back as a precise, model-visible error (*"argument 'left' must be a whole number …
+but the value was the string \"one\""*, *"must be one of: Celsius, Fahrenheit"*), so the model
+corrects itself on the next turn instead of the run dying on an exception.
+
 **🔒 Provable behavior, not prompt engineering.** The answer to *"how do you guarantee the
 agent can't do X?"* is enforced machinery, all model-visible so Claude self-corrects:
 

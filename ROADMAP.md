@@ -164,6 +164,8 @@ Phases 0–7 are complete; work now lands as one focused feature per PR, each he
    in-flight response, so a UI can render a typed object as it is written.
 3. **Multi-agent handoff** — `AgentOptions.Handoffs` transfers a whole conversation to another
    agent, carrying accumulated taint across the boundary.
+4. **Argument validation in generated binders** — a wrong-typed or unknown-enum argument becomes a
+   model-visible error result naming what was expected, instead of an unhandled exception.
 
 ## Post-1.0 backlog (in order)
 
