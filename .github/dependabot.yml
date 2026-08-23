@@ -13,8 +13,12 @@ updates:
       - "dependencies"
       - "nuget"
     groups:
-      # One PR for non-breaking bumps; majors still get individual PRs to review.
+      # One PR for non-breaking bumps, merged automatically once CI is green (see
+      # workflows/dependabot-auto-merge.yml). Majors still get individual PRs, and are never
+      # auto-merged.
       nuget-minor-patch:
+        patterns:
+          - "*"
         update-types:
           - "minor"
           - "patch"
@@ -32,7 +36,10 @@ updates:
       - "dependencies"
       - "github-actions"
     groups:
+      # Same treatment as NuGet: grouped, auto-merged on green, majors reviewed by hand.
       github-actions:
+        patterns:
+          - "*"
         update-types:
           - "minor"
           - "patch"
