@@ -14,6 +14,12 @@ internal sealed record ToolResultDto(string Id, string Name, string Result, bool
 
 internal sealed record SuspendedDto(Guid ConversationId, IReadOnlyList<string> PendingTools);
 
+internal sealed record ToolFailedDto(string Id, string Name, string ExceptionType, bool TimedOut);
+
+internal sealed record HandoffDto(string TargetName, string? Reason);
+
+internal sealed record ErrorDto(string ExceptionType);
+
 internal sealed record CompletedDto(
     Guid ConversationId,
     string StopReason,
@@ -29,5 +35,8 @@ internal sealed record CompletedDto(
 [JsonSerializable(typeof(ToolCallDto))]
 [JsonSerializable(typeof(ToolResultDto))]
 [JsonSerializable(typeof(SuspendedDto))]
+[JsonSerializable(typeof(ToolFailedDto))]
+[JsonSerializable(typeof(HandoffDto))]
+[JsonSerializable(typeof(ErrorDto))]
 [JsonSerializable(typeof(CompletedDto))]
 internal sealed partial class EmissaryWireContext : JsonSerializerContext;
