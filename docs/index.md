@@ -28,7 +28,8 @@ var result = await agent.RunAsync("Refund order A-1001, it arrived broken.");
 | [Testing agents](guides/testing.md) | Record/replay, behavioral assertions, canarying, LLM-judge evaluation |
 | [Production](guides/production.md) | Hosting, human-in-the-loop, sessions, resilience, caching, cost, telemetry |
 
-The [API reference](api/Emissary.yml) is generated from the source XML documentation.
+The [API reference](api/Emissary.yml) is generated from the source XML documentation, and
+[benchmarks](benchmarks.md) has the measured numbers behind the performance claims.
 
 ## Packages
 
@@ -43,6 +44,14 @@ The [API reference](api/Emissary.yml) is generated from the source XML documenta
 
 ## Design decisions
 
-Emissary's architecture decisions are recorded as ADRs — start with
-[Claude-native, not provider-agnostic](adr/0001-claude-native.md) and
-[the coverage policy](adr/0003-coverage-policy.md).
+Emissary's architecture decisions are recorded as ADRs. The ones that explain the most about how it
+behaves:
+
+| ADR | Decision |
+|---|---|
+| [0001](adr/0001-claude-native.md) | Claude-native, not provider-agnostic |
+| [0003](adr/0003-coverage-policy.md) | 100% coverage, and what may be baselined |
+| [0005](adr/0005-versioning-and-releases.md) | Tag-driven, lockstep versioning |
+| [0006](adr/0006-client-side-compaction.md) | Compaction runs client-side, so compacted runs still replay |
+| [0007](adr/0007-tool-failure-disclosure.md) | A failed tool tells the model less than it tells the caller |
+| [0008](adr/0008-sdk-boundary-testing.md) | Tests at the SDK boundary must use SDK-produced values |

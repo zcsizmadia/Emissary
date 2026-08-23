@@ -12,8 +12,8 @@ One package brings the runtime, the source generator, and the analyzer. Emissary
 
 ## Your first tool
 
-A tool is a static method with an attribute. The generator turns it into a wire-ready tool at
-compile time — the JSON Schema comes from the signature, the descriptions from your doc comments:
+A tool is a method with an attribute. The generator turns it into a wire-ready tool at compile
+time — the JSON Schema comes from the signature, the descriptions from your doc comments:
 
 ```csharp
 using Emissary;

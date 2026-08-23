@@ -123,6 +123,9 @@ if (!eval.Passed) Console.WriteLine(eval.ToText());
   APIs; `MapEmissaryApprovals` is the resume webhook. Ships as a Native AOT container.
 - **MCP server** — your generated C# tools (or a whole agent) become Model Context Protocol
   tools callable from Claude Code and Claude Desktop: `claude mcp add my-tools -- dotnet run ...`
+- **`IChatClient` adapter** — `new EmissaryChatClient(agent)` drops an Emissary agent into any
+  Microsoft.Extensions.AI pipeline, including Microsoft Agent Framework orchestrations. Claude-native
+  to build, universally consumable once built.
 - **Prompt caching by default** — automatic cache breakpoints (tools, system prompt, latest
   message) keep multi-turn cache hit rates high; cache economics are visible per run.
 - **Resilience** — `options.Resilience`: retries with capped exponential backoff, per-attempt
@@ -169,7 +172,7 @@ agent run, 1.53 MB AOT binary with a ~44 ms process lifetime.
 ## Quick start
 
 ```bash
-dotnet add package Emissary        # runtime + source generator, one package
+dotnet add package Emissary --prerelease   # runtime + source generator, one package
 export ANTHROPIC_API_KEY=...
 ```
 
@@ -239,7 +242,8 @@ the SDK boundary [must use SDK-produced values](docs/adr/0008-sdk-boundary-testi
 | `Emissary.Testing` | Framework-agnostic behavioral assertions for agent runs and replays |
 | `Emissary.AspNetCore` | SSE streaming endpoints and the human-approval webhook |
 | `Emissary.Mcp` | Expose tools or whole agents as an MCP stdio server |
-| `Emissary.Sqlite` | Durable suspended-run persistence for human-in-the-loop workflows |
+| `Emissary.Sqlite` | Durable suspended-run and conversation persistence |
+| `Emissary.Extensions.AI` | `IChatClient` adapter, for Microsoft.Extensions.AI pipelines and Microsoft Agent Framework interop |
 
 ## Samples
 
