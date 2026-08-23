@@ -19,6 +19,19 @@ options.Rules
 - **`Terminal`** — after this tool, no further tool calls are permitted in the run.
 - **`Limit`** — caps attempts per run.
 
+Rules are matched by wire name, so a typo would leave the contract quietly unenforced — the refund
+above would run unguarded. Instead, an agent whose contracts name a tool it does not have **throws
+at construction**:
+
+```text
+Tool contract names 'verify_identitiy', which this agent has no tool for.
+Its tools are 'refund_payment', 'verify_identity'.
+```
+
+Naming a tool that exists but is filtered out by [RBAC](#authorization-rbac) is fine: the rule is
+well-formed, it simply cannot fire because the model never sees that tool. Handoff tools
+(`handoff_to_billing`) can be named like any other.
+
 ## Taint tracking (prompt-injection defense)
 
 Mark what reads the outside world and what has real-world consequences:

@@ -170,6 +170,9 @@ Phases 0–7 are complete; work now lands as one focused feature per PR, each he
    reported to the model without ending the run, with the exception surfaced to the caller and the
    message withheld from the prompt by default.
 
+6. **Contract validation at construction** — an agent whose `Rules` name a tool it does not have
+   throws instead of running with a silently unenforceable safety contract.
+
 ## Post-1.0 backlog (in order)
 
 1. Model-upgrade canarying as a product (golden suites vs. new models, Batch API overnight runs).
