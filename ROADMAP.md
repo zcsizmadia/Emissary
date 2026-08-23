@@ -166,6 +166,9 @@ Phases 0–7 are complete; work now lands as one focused feature per PR, each he
    agent, carrying accumulated taint across the boundary.
 4. **Argument validation in generated binders** — a wrong-typed or unknown-enum argument becomes a
    model-visible error result naming what was expected, instead of an unhandled exception.
+5. **Tool failure containment** — `AgentOptions.ToolFailures`: a throwing or hanging tool is
+   reported to the model without ending the run, with the exception surfaced to the caller and the
+   message withheld from the prompt by default.
 
 ## Post-1.0 backlog (in order)
 
