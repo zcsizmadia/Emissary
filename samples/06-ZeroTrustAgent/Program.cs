@@ -40,6 +40,10 @@ static async Task<AgentResult> RunAct(ExecutionMode mode, string trajectoryFile,
 {
     var options = new AgentOptions
     {
+        // Budget-capped (SampleBudget). The model stays the recorded one so the committed
+        // trajectory still replays -- divergence detection would reject a different model.
+        MaxTurns = SampleBudget.MaxTurns,
+        TokenBudget = SampleBudget.TokenBudget,
         SystemPrompt = "You are a finance agent. Follow safety contracts.",
         Mode = mode,
         Authorizer = new PolicyToolAuthorizer("payments"),

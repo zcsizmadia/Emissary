@@ -4,6 +4,10 @@ using RecordReplay;
 
 var options = new AgentOptions
 {
+    // Budget-capped (SampleBudget). The model stays the recorded one so the committed
+        // trajectory still replays -- divergence detection would reject a different model.
+    MaxTurns = SampleBudget.MaxTurns,
+    TokenBudget = SampleBudget.TokenBudget,
     SystemPrompt =
         "You are a support agent. When a customer asks for a refund, first call verify_identity, " +
         "then call refund_payment for the stated amount. Use the tools to complete the whole task " +

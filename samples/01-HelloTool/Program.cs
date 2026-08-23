@@ -2,6 +2,10 @@ using Emissary;
 
 var agent = new ClaudeAgent(new AgentOptions
 {
+    // Capped so a demo run costs a fraction of a cent, and a stuck run stops (SampleBudget).
+    Model = SampleBudget.Model,
+    MaxTurns = SampleBudget.MaxTurns,
+    TokenBudget = SampleBudget.TokenBudget,
     SystemPrompt =
         "You are a concise assistant. You cannot roll dice or read the clock yourself — always " +
         "use the provided tools for those, then report the actual results they return.",

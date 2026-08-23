@@ -11,6 +11,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Shared cost limits, so no sample can be run at frontier-model prices by accident. -->
+    <Compile Include="$(MSBuildThisFileDirectory)SampleBudget.cs" Link="SampleBudget.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="$(MSBuildThisFileDirectory)..\src\Emissary\Emissary.csproj" />
     <ProjectReference Include="$(MSBuildThisFileDirectory)..\src\Emissary.SourceGenerators\Emissary.SourceGenerators.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
