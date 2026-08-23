@@ -1,0 +1,93 @@
+name: Dependabot auto-merge
+
+# Merges Dependabot's grouped minor and patch bumps once every other check on the commit has
+# passed. Major bumps are never merged here — they get read by a human.
+#
+# Why this waits for checks itself, instead of `gh pr merge --auto`: GitHub's native auto-merge
+# only waits for status checks that a branch protection rule marks as *required*. `main` has no
+# protection rule, so `--auto` would merge the moment the PR is mergeable — before CI has said
+# anything. Polling the commit's check runs gives "green, then merge" without requiring a repo
+# settings change. If branch protection with required checks is added later, this can be replaced
+# by `--auto`.
+on:
+  pull_request:
+
+# Dependabot pull requests get a read-only token by default; these declarations grant the writes
+# the merge needs. Nothing here runs code from the pull request.
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: dependabot-auto-merge-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  # The job name doubles as the check-run name skipped when polling below. Keep them in sync.
+  auto-merge:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read the update metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # For a grouped pull request this reports the highest bump in the group, so a group that
+      # happens to contain a major is left alone as a whole.
+      - name: Decide
+        id: decide
+        env:
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+        run: |
+          case "$UPDATE_TYPE" in
+            version-update:semver-patch|version-update:semver-minor)
+              echo "merge=true" >> "$GITHUB_OUTPUT"
+              echo "::notice::$UPDATE_TYPE — will merge once checks pass." ;;
+            *)
+              echo "merge=false" >> "$GITHUB_OUTPUT"
+              echo "::notice::$UPDATE_TYPE — leaving open for review." ;;
+          esac
+
+      - name: Wait for the other checks on this commit
+        if: steps.decide.outputs.merge == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          for attempt in $(seq 1 60); do
+            runs=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?per_page=100" \
+              --jq '[.check_runs[] | select(.name != "auto-merge")]')
+            total=$(echo "$runs" | jq 'length')
+            pending=$(echo "$runs" | jq '[.[] | select(.status != "completed")] | length')
+            # skipped and neutral are fine: the docs workflow deliberately skips its deploy job
+            # on pull requests.
+            bad=$(echo "$runs" | jq -r '[.[] | select(.conclusion != null
+              and .conclusion != "success"
+              and .conclusion != "skipped"
+              and .conclusion != "neutral")] | map(.name + ": " + .conclusion) | join(", ")')
+
+            if [ -n "$bad" ]; then
+              echo "::error::Not merging — $bad"
+              exit 1
+            fi
+
+            if [ "$total" -gt 0 ] && [ "$pending" -eq 0 ]; then
+              echo "All $total check(s) green."
+              exit 0
+            fi
+
+            echo "attempt $attempt: $pending of $total check(s) still running"
+            sleep 20
+          done
+
+          echo "::error::Timed out waiting for checks; leaving the pull request open."
+          exit 1
+
+      - name: Merge
+        if: steps.decide.outputs.merge == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --squash --delete-branch "$PR_URL"
