@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512"
+     role="img" aria-label="Emissary">
+  <title>Emissary</title>
+  <defs>
+    <!-- .NET purple, so the mark reads as a .NET library at a glance. -->
+    <linearGradient id="seal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6E3AF0"/>
+      <stop offset="1" stop-color="#3D1B9E"/>
+    </linearGradient>
+    <clipPath id="sealClip">
+      <rect x="32" y="32" width="448" height="448" rx="104"/>
+    </clipPath>
+  </defs>
+
+  <!-- The seal: an emissary carries authority, and a sealed dispatch is one you can audit.
+       The clay corner is the turned-back corner of a letter — the Claude-native accent, kept
+       off the letterform so it cannot be mistaken for part of it. -->
+  <g clip-path="url(#sealClip)">
+    <rect x="32" y="32" width="448" height="448" fill="url(#seal)"/>
+    <path d="M480 356 L480 480 L356 480 Z" fill="#D97757"/>
+  </g>
+
+  <!-- The E: one colour, so it reads as one letter. A two-tone glyph groups by colour before
+       shape, and a clay bottom arm made this an F. -->
+  <g fill="#FFFFFF">
+    <rect x="140" y="152" width="232" height="46" rx="23"/>
+    <rect x="140" y="233" width="168" height="46" rx="23"/>
+    <rect x="140" y="314" width="232" height="46" rx="23"/>
+    <rect x="140" y="152" width="46" height="208" rx="23"/>
+  </g>
+</svg>
