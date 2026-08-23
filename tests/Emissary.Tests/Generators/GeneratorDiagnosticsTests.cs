@@ -53,6 +53,53 @@ public sealed class GeneratorDiagnosticsTests
     }
 
     [Test]
+    public async Task EMS011_negative_max_result_length_is_an_error()
+    {
+        var result = GeneratorHarness.Run("""
+            public static partial class Tools
+            {
+                [Emissary.ClaudeTool(Description = "d", MaxResultLength = -5)]
+                public static string Dump(string table) => table;
+            }
+            """, out _);
+
+        var ems011 = result.Diagnostics.Single(d => d.Id == "EMS011");
+        await Assert.That(ems011.GetMessage(null)).Contains("-5");
+    }
+
+    [Test]
+    public async Task Max_result_length_flows_into_the_generated_tool()
+    {
+        var result = await GeneratorHarness.RunClean("""
+            public static partial class Tools
+            {
+                /// <summary>d</summary>
+                /// <param name="table">The table.</param>
+                [Emissary.ClaudeTool(MaxResultLength = 4096)]
+                public static string Dump(string table) => table;
+            }
+            """);
+
+        await Assert.That(GeneratorHarness.GeneratedSource(result)).Contains("4096);");
+    }
+
+    [Test]
+    public async Task Zero_max_result_length_means_no_cap()
+    {
+        var result = await GeneratorHarness.RunClean("""
+            public static partial class Tools
+            {
+                /// <summary>d</summary>
+                /// <param name="table">The table.</param>
+                [Emissary.ClaudeTool(MaxResultLength = 0)]
+                public static string Dump(string table) => table;
+            }
+            """);
+
+        await Assert.That(GeneratorHarness.GeneratedSource(result)).Contains("null);");
+    }
+
+    [Test]
     public async Task EMS010_authorize_without_tool_is_a_warning()
     {
         var result = GeneratorHarness.Run("""

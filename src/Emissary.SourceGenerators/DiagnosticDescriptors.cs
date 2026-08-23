@@ -78,6 +78,14 @@ internal static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    public static readonly DiagnosticDescriptor InvalidMaxResultLength = new(
+        id: "EMS011",
+        title: "MaxResultLength must be positive",
+        messageFormat: "MaxResultLength on tool method '{0}' is {1}; use a positive character count, or 0 for no cap",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     public static readonly DiagnosticDescriptor TypeNotSchemaRepresentable = new(
         id: "EMS008",
         title: "Type is not schema-representable",

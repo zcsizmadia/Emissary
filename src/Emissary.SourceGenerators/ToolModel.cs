@@ -54,6 +54,7 @@ internal sealed class ToolModel
     public string HintName = "";
     public string? RequiredPolicy;
     public string? CompensatedBy;
+    public int MaxResultLength;
     public bool Untrusted;
     public bool Privileged;
     public JsonKind ReturnKind;

@@ -18,6 +18,7 @@ public sealed class ToolDefinition
     /// <param name="untrusted">Whether the tool's output taints the run (see <see cref="ClaudeToolAttribute.Untrusted"/>).</param>
     /// <param name="privileged">Whether the tool is blocked in tainted runs (see <see cref="ClaudeToolAttribute.Privileged"/>).</param>
     /// <param name="compensation">Handler that undoes this tool's effect given the original input, or <see langword="null"/>.</param>
+    /// <param name="maxResultLength">Caps how much of the tool's output reaches the model; <see langword="null"/> for no cap.</param>
     /// <exception cref="ArgumentNullException">A required argument is <see langword="null"/>.</exception>
     public ToolDefinition(
         string name,
@@ -27,7 +28,8 @@ public sealed class ToolDefinition
         string? requiredPolicy = null,
         bool untrusted = false,
         bool privileged = false,
-        Func<JsonElement, CancellationToken, ValueTask<string>>? compensation = null)
+        Func<JsonElement, CancellationToken, ValueTask<string>>? compensation = null,
+        int? maxResultLength = null)
     {
         ArgumentNullException.ThrowIfNull(name);
         ArgumentNullException.ThrowIfNull(description);
@@ -42,6 +44,12 @@ public sealed class ToolDefinition
         Untrusted = untrusted;
         Privileged = privileged;
         Compensation = compensation;
+        if (maxResultLength is { } cap)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(cap, 1, nameof(maxResultLength));
+        }
+
+        MaxResultLength = maxResultLength;
     }
 
     /// <summary>The wire name of the tool.</summary>
@@ -67,6 +75,13 @@ public sealed class ToolDefinition
 
     /// <summary>Undoes this tool's effect given the original input, or <see langword="null"/>.</summary>
     public Func<JsonElement, CancellationToken, ValueTask<string>>? Compensation { get; }
+
+    /// <summary>
+    /// Caps how much of this tool's output reaches the model, guarding the context window and
+    /// token budget against a tool that returns far more than expected.
+    /// <see langword="null"/> means no cap.
+    /// </summary>
+    public int? MaxResultLength { get; }
 
     /// <summary>Invokes the tool with the given tool-use input.</summary>
     /// <param name="input">The tool-use input object.</param>

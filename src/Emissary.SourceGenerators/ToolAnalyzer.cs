@@ -95,6 +95,11 @@ internal sealed class ToolAnalyzer
                 case "CompensatedBy":
                     _model.CompensatedBy = argument.Value.Value as string;
                     break;
+                case "MaxResultLength":
+                    // The attribute property is typed int, so a non-int here is impossible from
+                    // compiling source; GetValueOrDefault keeps that fact branch-free.
+                    _model.MaxResultLength = (argument.Value.Value as int?).GetValueOrDefault();
+                    break;
                 default:
                     description = argument.Value.Value as string;
                     break;
@@ -107,6 +112,12 @@ internal sealed class ToolAnalyzer
             {
                 _model.RequiredPolicy = attribute.ConstructorArguments[0].Value as string;
             }
+        }
+
+        if (_model.MaxResultLength < 0)
+        {
+            Report(DiagnosticDescriptors.InvalidMaxResultLength, _method.Name, _model.MaxResultLength);
+            _model.MaxResultLength = 0;
         }
 
         if (_model.CompensatedBy is { } compensator && !IsClaudeToolMethod(compensator))
