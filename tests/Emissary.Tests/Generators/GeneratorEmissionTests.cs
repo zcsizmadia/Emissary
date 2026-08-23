@@ -318,7 +318,7 @@ public sealed class GeneratorEmissionTests
             """);
 
         var bookSource = result.GeneratedSources.Single(s => s.HintName.Contains("Book")).SourceText.ToString();
-        await Assert.That(bookSource).Contains("__EmissaryInvoke_Cancel);");
+        await Assert.That(bookSource).Contains("__EmissaryInvoke_Cancel,");
     }
 
     [Test]

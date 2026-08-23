@@ -593,6 +593,13 @@ public sealed class ClaudeAgent
         try
         {
             string content = await tool.Handler(toolUse.Input, cancellationToken).ConfigureAwait(false);
+            if (tool.MaxResultLength is { } cap && content.Length > cap)
+            {
+                EmissaryDiagnostics.Tag(activity, "emissary.tool.result_truncated", true);
+                EmissaryDiagnostics.Tag(activity, "emissary.tool.result_length", content.Length);
+                content = ToolResultTruncation.Apply(content, cap);
+            }
+
             return new ToolResultBlock(toolUse.Id, content, IsError: false);
         }
         catch (ToolArgumentException exception)

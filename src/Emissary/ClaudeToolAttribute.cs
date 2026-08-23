@@ -37,6 +37,14 @@ public sealed class ClaudeToolAttribute : Attribute
     public bool Privileged { get; set; }
 
     /// <summary>
+    /// Caps how many characters of this tool's output reach the model, guarding the context
+    /// window and token budget against a tool that returns far more than expected. Output past
+    /// the cap is replaced with a notice telling the model data was withheld. Leave at
+    /// <c>0</c> (the default) for no cap; negative values raise diagnostic EMS011.
+    /// </summary>
+    public int MaxResultLength { get; set; }
+
+    /// <summary>
     /// Names another <c>[ClaudeTool]</c> method on the same type that undoes this tool's effect
     /// (saga compensation), e.g. <c>CompensatedBy = nameof(CancelReservation)</c>. The compensator
     /// is invoked with this tool's original input by <see cref="ClaudeAgent.CompensateAsync"/>.

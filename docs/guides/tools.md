@@ -49,6 +49,22 @@ public sealed record Reservation(string Room, string CheckInDate, string[] Guest
 Anything else is a build error (`EMS002`) naming the offending parameter — not a runtime
 serialization failure.
 
+## Capping tool output
+
+A tool that returns far more than you expected — a table dump, a whole log file — quietly
+consumes your context window and your token budget. Cap it at the source:
+
+```csharp
+/// <summary>Dumps recent rows from a table.</summary>
+/// <param name="table">The table name.</param>
+[ClaudeTool(MaxResultLength = 8_000)]
+public static string DumpTable(string table) => /* ... */;
+```
+
+Output past the cap is replaced with a short notice telling the model that data was withheld and
+to narrow its request, so it adapts instead of reasoning over a silently truncated answer. A
+negative cap is a build error (`EMS011`); `0` (the default) means no cap.
+
 ## Structured outputs
 
 Mark a record `[ClaudeSchema]` to get a compile-time **strict** schema
@@ -82,6 +98,7 @@ API, result — is reflection-free.
 | `EMS008` | Error | `[ClaudeSchema]` type is not schema-representable |
 | `EMS009` | Error | `CompensatedBy` target is not a `[ClaudeTool]` on the same type |
 | `EMS010` | Warning | `[AuthorizeTool]` without `[ClaudeTool]` — the policy would be ignored |
+| `EMS011` | Error | `MaxResultLength` is negative |
 
 ## Composing agents
 
