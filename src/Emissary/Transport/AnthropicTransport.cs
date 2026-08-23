@@ -16,16 +16,24 @@ namespace Emissary.Transport;
 internal sealed class AnthropicTransport : IModelTransport
 {
     private readonly string? _apiKey;
+    private readonly TimeSpan? _requestTimeout;
     private AnthropicClient? _client;
 
-    public AnthropicTransport(string? apiKey)
+    public AnthropicTransport(string? apiKey, TimeSpan? requestTimeout = null)
     {
         _apiKey = apiKey;
+        _requestTimeout = requestTimeout;
     }
 
+    // The SDK retries internally (2 by default, its own 10-minute timeout). Layered under
+    // ResilientTransport that multiplies out: options.MaxRetries = 2 became nine HTTP attempts and a
+    // worst case measured in tens of minutes. Retries belong to one layer only, and it is the one
+    // the caller configured and that recording and replay sit above.
+    // A null ApiKey is left unset so the SDK resolves ANTHROPIC_API_KEY itself, with its own error
+    // when that is missing too.
     private AnthropicClient Client => _client ??= _apiKey is null
-        ? new AnthropicClient()
-        : new AnthropicClient { ApiKey = _apiKey };
+        ? new AnthropicClient { MaxRetries = 0, Timeout = _requestTimeout }
+        : new AnthropicClient { ApiKey = _apiKey, MaxRetries = 0, Timeout = _requestTimeout };
 
     public async IAsyncEnumerable<StreamEvent> StreamAsync(
         ModelRequest request,

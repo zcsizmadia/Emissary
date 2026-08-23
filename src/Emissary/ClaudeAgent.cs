@@ -36,7 +36,9 @@ public sealed class ClaudeAgent
     private static ResilientTransport BuildLiveTransport(AgentOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        return new ResilientTransport(new AnthropicTransport(options.ApiKey), options.Resilience);
+        return new ResilientTransport(
+            new AnthropicTransport(options.ApiKey, options.Resilience.RequestTimeout),
+            options.Resilience);
     }
 
     /// <summary>Creates an agent that replays a recorded trajectory instead of calling the API.</summary>

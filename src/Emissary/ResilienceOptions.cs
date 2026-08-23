@@ -16,12 +16,19 @@ public sealed class ResilienceOptions
     /// <summary>Upper bound on a single backoff delay. Default 30s.</summary>
     public TimeSpan MaxDelay { get; set; } = TimeSpan.FromSeconds(30);
 
-    /// <summary>Optional timeout for a single attempt; <see langword="null"/> means no per-attempt timeout.</summary>
+    /// <summary>
+    /// How long one attempt may take to <b>start streaming</b> — the time to the first event.
+    /// A timed-out attempt is retried. Once the stream is established the answer may take as long
+    /// as it takes, since a long answer is not a failure; from then on only the caller's
+    /// cancellation token stops it. Also caps the underlying SDK client's own request timeout, whose
+    /// default is 10 minutes. <see langword="null"/> means no timeout of our own.
+    /// </summary>
     public TimeSpan? RequestTimeout { get; set; }
 
     /// <summary>
     /// Overrides which exceptions are treated as transient (retryable). When <see langword="null"/>,
-    /// the built-in classifier retries HTTP, timeout, and Anthropic rate-limit/overloaded/5xx errors.
+    /// the built-in classifier retries connection failures and the API statuses that mean "ask again
+    /// later" (408, 429, and 5xx including Anthropic's 529 overloaded).
     /// </summary>
     public Func<Exception, bool>? ShouldRetry { get; set; }
 }
