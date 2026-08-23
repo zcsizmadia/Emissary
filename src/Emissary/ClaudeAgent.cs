@@ -81,7 +81,29 @@ public sealed class ClaudeAgent
         }
 
         _activeTools = [.. active];
+
+        // A contract naming a tool this agent does not have can never fire. Silently ignoring it
+        // would mean a typo in Require("refund_payment", "verify_identity") leaves the refund
+        // unguarded, so it is rejected here instead — the rules are a safety mechanism, and one
+        // that quietly does nothing is worse than none.
+        var declared = new HashSet<string>(options.Tools.Select(t => t.Name), StringComparer.Ordinal);
+        declared.UnionWith(_handoffsByTool.Keys);
+        var unknown = options.Rules.ReferencedTools()
+            .Where(name => !declared.Contains(name))
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToList();
+        if (unknown.Count > 0)
+        {
+            throw new ArgumentException(
+                $"Tool contract names {Quoted(unknown)}, which this agent has no tool for. "
+                + $"Its tools are {(declared.Count == 0 ? "(none)" : Quoted(declared.OrderBy(n => n, StringComparer.Ordinal)))}.",
+                nameof(options));
+        }
     }
+
+    private static string Quoted(IEnumerable<string> names) =>
+        string.Join(", ", names.Select(name => $"'{name}'"));
 
     /// <summary>Runs the agent on a single user message and returns the outcome.</summary>
     /// <param name="userInput">The user's text.</param>
