@@ -14,6 +14,7 @@ public sealed class ClaudeAgent
     private readonly AgentOptions _options;
     private readonly IModelTransport _transport;
     private readonly ToolDefinition[] _activeTools;
+    private readonly Dictionary<string, HandoffTarget> _handoffsByTool = new(StringComparer.Ordinal);
 
     /// <summary>Creates an agent talking to the Claude API.</summary>
     /// <param name="options">The agent configuration.</param>
@@ -67,9 +68,19 @@ public sealed class ClaudeAgent
 
         // Pre-prompt schema filtering: policy-gated tools the authorizer does not grant are
         // invisible to the model and unexecutable. No authorizer means deny by default.
-        _activeTools = options.Tools
+        var active = options.Tools
             .Where(t => t.RequiredPolicy is null || options.Authorizer?.IsAuthorized(t) == true)
-            .ToArray();
+            .ToList();
+
+        // Each handoff target becomes a tool the model can call to transfer the conversation.
+        foreach (var target in options.Handoffs)
+        {
+            var tool = HandoffTools.Create(target);
+            _handoffsByTool[tool.Name] = target;
+            active.Add(tool);
+        }
+
+        _activeTools = [.. active];
     }
 
     /// <summary>Runs the agent on a single user message and returns the outcome.</summary>
@@ -233,7 +244,8 @@ public sealed class ClaudeAgent
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(conversation);
-        return RunLoopAsync(conversation, AgentUsage.Zero, new ToolCallGuard(_options.Rules), [], cancellationToken);
+        return RunLoopAsync(
+            conversation, AgentUsage.Zero, new ToolCallGuard(_options.Rules), [], 0, cancellationToken);
     }
 
     /// <summary>Resumes a suspended run with a human decision and returns the outcome.</summary>
@@ -302,10 +314,36 @@ public sealed class ClaudeAgent
         conversation = conversation.Append(new Message(MessageRole.User, [.. ordered]));
 
         await foreach (var agentEvent in RunLoopAsync(
-            conversation, run.Usage, guard, [.. run.PlannedEffects], cancellationToken).ConfigureAwait(false))
+            conversation, run.Usage, guard, [.. run.PlannedEffects], 0, cancellationToken).ConfigureAwait(false))
         {
             yield return agentEvent;
         }
+    }
+
+    /// <summary>
+    /// The first handoff the model requested in this batch that is allowed to proceed, or
+    /// <see langword="null"/>. A failed call (contract violation, depth cap) is not a handoff.
+    /// </summary>
+    private (HandoffTarget Target, string? Reason)? FindHandoff(
+        ToolUseBlock[] toolUses,
+        ToolResultBlock?[] results,
+        int handoffDepth)
+    {
+        if (handoffDepth >= _options.MaxHandoffs)
+        {
+            return null;
+        }
+
+        for (int i = 0; i < toolUses.Length; i++)
+        {
+            if (results[i] is { IsError: false }
+                && _handoffsByTool.TryGetValue(toolUses[i].Name, out var target))
+            {
+                return (target, HandoffTools.ReasonOf(toolUses[i].Input));
+            }
+        }
+
+        return null;
     }
 
     private async IAsyncEnumerable<AgentEvent> RunLoopAsync(
@@ -313,6 +351,7 @@ public sealed class ClaudeAgent
         AgentUsage usage,
         ToolCallGuard guard,
         List<PlannedEffect> plannedEffects,
+        int handoffDepth = 0,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         long startTimestamp = Stopwatch.GetTimestamp();
@@ -421,6 +460,27 @@ public sealed class ClaudeAgent
                 }
 
                 conversation = conversation.Append(new Message(MessageRole.User, [.. results.OfType<ToolResultBlock>()]));
+
+                if (FindHandoff(toolUses, results, handoffDepth) is { } handoff)
+                {
+                    yield return new AgentHandoffEvent(handoff.Target.Name, handoff.Reason);
+                    EmissaryDiagnostics.Tag(runActivity, "emissary.handoff.target", handoff.Target.Name);
+
+                    // The target continues the same conversation under its own prompt, tools and
+                    // contracts — but inherits this run's guard state, so taint acquired here
+                    // still blocks privileged tools there.
+                    var target = handoff.Target.Agent;
+                    var inherited = ToolCallGuard.Restore(target._options.Rules, guard.Snapshot());
+                    await foreach (var handedOff in target.RunLoopAsync(
+                        conversation, usage, inherited, plannedEffects, handoffDepth + 1, cancellationToken)
+                        .ConfigureAwait(false))
+                    {
+                        yield return handedOff;
+                    }
+
+                    yield break;
+                }
+
                 continue;
             }
 

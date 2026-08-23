@@ -131,3 +131,38 @@ rules still apply across the boundary.
 var researcher = new ClaudeAgent(researchOptions);
 parentOptions.Tools.Add(researcher.AsTool("researcher", "Delegates research questions."));
 ```
+
+## Handing a conversation off
+
+`AsTool` delegates a *question* — the sub-agent answers and control returns to the caller. A
+handoff delegates the *conversation*: the target takes over and produces the final answer, running
+the history it inherits under its own system prompt, tools, and contracts. This is the shape behind
+a triage agent that routes to specialists.
+
+```csharp
+var billing = new ClaudeAgent(billingOptions);
+
+var triageOptions = new AgentOptions { SystemPrompt = "Route the customer to the right team." };
+triageOptions.Handoffs.Add(new HandoffTarget("billing", billing, "Charges, refunds and invoices."));
+
+var triage = new ClaudeAgent(triageOptions, transport);
+```
+
+Each target becomes a `handoff_to_{name}` tool the model can call, described by the target's
+`Description`. When the model calls one, the run emits an `AgentHandoffEvent` and the target
+continues from there; the `AgentResult` you get back is the target's.
+
+Three properties are worth knowing:
+
+- **Taint crosses the boundary.** The target inherits the source agent's guard state, so a
+  conversation that read untrusted content before the transfer still cannot reach privileged tools
+  after it. The transfer is not a laundering step — see [Safety](safety.md).
+- **Usage accumulates.** Token counts and planned effects span the whole run, not just the agent
+  that finished it.
+- **Chains terminate.** `AgentOptions.MaxHandoffs` (default 3) caps the transfers in one run. At
+  the cap the transfer tool still executes as an ordinary tool, so the model sees an acknowledgment
+  and answers itself rather than the run failing.
+
+`Handoffs` is read when the agent is constructed, so every target must already exist — handoff
+graphs are acyclic. To send a conversation back to a generalist, give that generalist the final say
+by making it the last agent in the chain rather than a cycle.
