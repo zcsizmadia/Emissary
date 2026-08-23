@@ -27,9 +27,10 @@ internal static partial class MyTools
 }
 ```
 
-Two rules the compiler enforces for you: the containing type must be `partial`, and the method
-must be `static`. Miss either and you get a build error (`EMS004`/`EMS005`) rather than a runtime
-surprise.
+One rule the compiler enforces for you: the containing type must be `partial`, or you get a build
+error (`EMS004`) rather than a runtime surprise. The method can be static, as here, or an instance
+method when the tool needs injected dependencies — see
+[Tools with dependencies](tools.md#tools-with-dependencies).
 
 ## Your first agent
 

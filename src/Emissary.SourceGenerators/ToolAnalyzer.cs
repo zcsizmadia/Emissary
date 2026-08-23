@@ -32,10 +32,7 @@ internal sealed class ToolAnalyzer
     {
         _model.MethodName = _method.Name;
 
-        if (!_method.IsStatic)
-        {
-            Report(DiagnosticDescriptors.MethodNotStatic, _method.Name);
-        }
+        _model.IsInstance = !_method.IsStatic;
 
         bool isGeneric = _method.IsGenericMethod;
         for (INamedTypeSymbol? type = _method.ContainingType; type is not null; type = type.ContainingType)
@@ -120,10 +117,25 @@ internal sealed class ToolAnalyzer
             _model.MaxResultLength = 0;
         }
 
-        if (_model.CompensatedBy is { } compensator && !IsClaudeToolMethod(compensator))
+        if (_model.CompensatedBy is { } compensator)
         {
-            Report(DiagnosticDescriptors.CompensatorNotFound, _method.Name, compensator);
-            _model.CompensatedBy = null;
+            var target = FindClaudeToolMethod(compensator);
+            if (target is null)
+            {
+                Report(DiagnosticDescriptors.CompensatorNotFound, _method.Name, compensator);
+                _model.CompensatedBy = null;
+            }
+            else if (target.IsStatic != _method.IsStatic)
+            {
+                // The generated definition references the compensator's dispatcher directly, so a
+                // static tool cannot reach an instance compensator (or the reverse).
+                Report(
+                    DiagnosticDescriptors.CompensatorStaticnessMismatch,
+                    _method.Name,
+                    compensator,
+                    target.IsStatic ? "static" : "an instance method");
+                _model.CompensatedBy = null;
+            }
         }
 
         _model.ToolName = string.IsNullOrWhiteSpace(name) ? NameHelpers.ToSnakeCase(_method.Name) : name!;
@@ -142,10 +154,10 @@ internal sealed class ToolAnalyzer
         }
     }
 
-    private bool IsClaudeToolMethod(string methodName) =>
+    private IMethodSymbol? FindClaudeToolMethod(string methodName) =>
         _method.ContainingType.GetMembers(methodName)
             .OfType<IMethodSymbol>()
-            .Any(m => m.GetAttributes().Any(a =>
+            .FirstOrDefault(m => m.GetAttributes().Any(a =>
                 a.AttributeClass?.ToDisplayString() == "Emissary.ClaudeToolAttribute"));
 
     private void AnalyzeParameters(Dictionary<string, string> parameterDocs)

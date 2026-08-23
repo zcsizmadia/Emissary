@@ -71,6 +71,42 @@ permitted set — the model usually gets it right on the retry. Two details wort
 default, and a required one reports as missing), and a number too large for its parameter type is
 rejected rather than silently saturated to infinity.
 
+## Tools with dependencies
+
+A tool method may be an instance method, which is how a tool reaches a `DbContext`, an
+`HttpClient`, or anything else from your container — no service locator, no static state:
+
+```csharp
+public sealed partial class OrderTools(IOrderRepository orders, ILogger<OrderTools> logger)
+{
+    /// <summary>Looks up the status of an order.</summary>
+    /// <param name="orderId">The order id.</param>
+    [ClaudeTool]
+    public async Task<string> LookupOrder(string orderId, CancellationToken cancellationToken)
+    {
+        logger.LogInformation("Looking up {OrderId}", orderId);
+        return await orders.StatusOfAsync(orderId, cancellationToken);
+    }
+}
+```
+
+The generated `{Method}Tool` is then an **instance** property rather than a static one, and its
+handler is bound to that instance:
+
+```csharp
+var tools = scope.ServiceProvider.GetRequiredService<OrderTools>();
+options.Tools.Add(tools.LookupOrderTool);
+```
+
+Build the options inside the scope whose lifetime the dependencies expect — per request for scoped
+services — exactly as you would for any other class that holds them. The definition is built once
+per instance and cached, so adding it to options costs nothing after the first access. Everything
+else is identical to a static tool: same schema generation, doc-comment descriptions, safety flags,
+diagnostics, and zero reflection.
+
+A tool and its `CompensatedBy` target must both be static or both be instance methods, since the
+generated definition references the compensator directly; a mismatch is `EMS012`.
+
 ## Capping tool output
 
 A tool that returns far more than you expected — a table dump, a whole log file — quietly
@@ -135,7 +171,7 @@ property name, a partially spelled enum — are skipped.
 | `EMS002` | Error | Unsupported parameter or member type |
 | `EMS003` | Info | Tool parameter has no `<param>` description |
 | `EMS004` | Error | Containing type is not `partial` |
-| `EMS005` | Error | Tool method is not `static` |
+| `EMS012` | Error | A tool and its `CompensatedBy` target differ in static-ness |
 | `EMS006` | Error | Unsupported return type |
 | `EMS007` | Error | Generic tool method or generic containing type |
 | `EMS008` | Error | `[ClaudeSchema]` type is not schema-representable |

@@ -9,6 +9,10 @@ await Check(AotTools.AddTool, """{"left":5}""", "15");
 await Check(AotTools.DescribeTool, """{"color":"Green","tags":["fast","native"]}""", "Green:fast+native");
 await Check(AotTools.ShipTool, """{"order":{"id":"A1","address":{"city":"Oslo","zip":"0150"}}}""", "A1->Oslo/0150 x1");
 
+// An instance tool holding a dependency: proves the this-bound dispatcher is trim-safe too.
+var greeter = new GreetingTools("hei");
+await Check(greeter.GreetTool, """{"name":"Ada"}""", "hei, Ada");
+
 if (!Verdict.JsonSchema.Contains("\"additionalProperties\":false", StringComparison.Ordinal))
 {
     Console.WriteLine("MISMATCH schema: strict marker missing.");
@@ -71,6 +75,15 @@ namespace Emissary.AotProof
         [ClaudeTool]
         public static string Ship(Order order) =>
             $"{order.Id}->{order.Address.City}/{order.Address.Zip} x{order.Quantity}";
+    }
+
+    /// <summary>Tools that carry a dependency, so they cannot be static.</summary>
+    internal sealed partial class GreetingTools(string greeting)
+    {
+        /// <summary>Greets someone.</summary>
+        /// <param name="name">Who to greet.</param>
+        [ClaudeTool]
+        public string Greet(string name) => $"{greeting}, {name}";
     }
 
     internal sealed record Address(string City, string Zip);
