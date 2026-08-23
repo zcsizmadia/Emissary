@@ -78,6 +78,13 @@ public sealed class AgentResult
     public IReadOnlyList<PlannedEffect> PlannedEffects { get; init; } = [];
 
     /// <summary>
+    /// Tool handlers that threw during the run and were reported to the model instead of ending it.
+    /// Empty when nothing failed. Carries the exceptions in full even when the model was told only
+    /// the exception type (see <see cref="ToolFailureOptions.IncludeExceptionMessage"/>).
+    /// </summary>
+    public IReadOnlyList<ToolFailure> ToolFailures { get; init; } = [];
+
+    /// <summary>
     /// The durable suspension state when <see cref="StopReason"/> is
     /// <see cref="AgentStopReason.AwaitingApproval"/>; otherwise <see langword="null"/>.
     /// </summary>

@@ -245,7 +245,7 @@ public sealed class ClaudeAgent
     {
         ArgumentNullException.ThrowIfNull(conversation);
         return RunLoopAsync(
-            conversation, AgentUsage.Zero, new ToolCallGuard(_options.Rules), [], 0, cancellationToken);
+            conversation, AgentUsage.Zero, new ToolCallGuard(_options.Rules), [], [], 0, cancellationToken);
     }
 
     /// <summary>Resumes a suspended run with a human decision and returns the outcome.</summary>
@@ -281,6 +281,7 @@ public sealed class ClaudeAgent
         var guard = ToolCallGuard.Restore(_options.Rules, run.Guard);
         var resultsById = run.CompletedResults.ToDictionary(r => r.ToolUseId, StringComparer.Ordinal);
 
+        var failures = new List<ToolFailure>();
         foreach (var pendingCall in run.PendingApprovals)
         {
             ToolResultBlock result;
@@ -288,8 +289,15 @@ public sealed class ClaudeAgent
             {
                 var tool = Array.Find(_activeTools, t => t.Name == pendingCall.ToolName);
                 var toolUse = new ToolUseBlock(pendingCall.ToolUseId, pendingCall.ToolName, pendingCall.Input);
-                result = await ExecuteToolAsync(tool, violation: null, shadow: false, toolUse, cancellationToken)
-                    .ConfigureAwait(false);
+                var (executed, failure) = await ExecuteToolAsync(
+                    tool, violation: null, shadow: false, toolUse, cancellationToken).ConfigureAwait(false);
+                result = executed;
+                if (failure is not null)
+                {
+                    failures.Add(failure);
+                    yield return new AgentToolFailedEvent(failure);
+                }
+
                 if (tool is not null)
                 {
                     guard.Record(tool, !result.IsError);
@@ -314,7 +322,7 @@ public sealed class ClaudeAgent
         conversation = conversation.Append(new Message(MessageRole.User, [.. ordered]));
 
         await foreach (var agentEvent in RunLoopAsync(
-            conversation, run.Usage, guard, [.. run.PlannedEffects], 0, cancellationToken).ConfigureAwait(false))
+            conversation, run.Usage, guard, [.. run.PlannedEffects], failures, 0, cancellationToken).ConfigureAwait(false))
         {
             yield return agentEvent;
         }
@@ -351,6 +359,7 @@ public sealed class ClaudeAgent
         AgentUsage usage,
         ToolCallGuard guard,
         List<PlannedEffect> plannedEffects,
+        List<ToolFailure> toolFailures,
         int handoffDepth = 0,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -434,7 +443,13 @@ public sealed class ClaudeAgent
             if (response.StopReason == "tool_use")
             {
                 var toolUses = response.Content.OfType<ToolUseBlock>().ToArray();
-                var (results, pending) = await ExecuteToolsAsync(toolUses, guard, plannedEffects, cancellationToken).ConfigureAwait(false);
+                var (results, pending, failed) = await ExecuteToolsAsync(toolUses, guard, plannedEffects, cancellationToken).ConfigureAwait(false);
+                foreach (var failure in failed)
+                {
+                    toolFailures.Add(failure);
+                    yield return new AgentToolFailedEvent(failure);
+                }
+
                 for (int i = 0; i < results.Length; i++)
                 {
                     if (results[i] is { } executed)
@@ -472,7 +487,7 @@ public sealed class ClaudeAgent
                     var target = handoff.Target.Agent;
                     var inherited = ToolCallGuard.Restore(target._options.Rules, guard.Snapshot());
                     await foreach (var handedOff in target.RunLoopAsync(
-                        conversation, usage, inherited, plannedEffects, handoffDepth + 1, cancellationToken)
+                        conversation, usage, inherited, plannedEffects, toolFailures, handoffDepth + 1, cancellationToken)
                         .ConfigureAwait(false))
                     {
                         yield return handedOff;
@@ -505,6 +520,7 @@ public sealed class ClaudeAgent
             Usage = usage,
             Tainted = guard.Tainted,
             PlannedEffects = plannedEffects,
+            ToolFailures = toolFailures,
             Suspension = suspension,
         });
     }
@@ -631,7 +647,8 @@ public sealed class ClaudeAgent
         _activeTools,
         _options.WebSearch);
 
-    private async Task<(ToolResultBlock?[] Results, List<PlannedEffect> Pending)> ExecuteToolsAsync(
+    private async Task<(ToolResultBlock?[] Results, List<PlannedEffect> Pending, List<ToolFailure> Failures)>
+        ExecuteToolsAsync(
         ToolUseBlock[] toolUses,
         ToolCallGuard guard,
         List<PlannedEffect> plannedEffects,
@@ -642,7 +659,7 @@ public sealed class ClaudeAgent
         // Approval-gated calls get no result — they suspend the run instead.
         var pending = new List<PlannedEffect>();
         var tools = new ToolDefinition?[toolUses.Length];
-        var tasks = new Task<ToolResultBlock>?[toolUses.Length];
+        var tasks = new Task<(ToolResultBlock Result, ToolFailure? Failure)>?[toolUses.Length];
         for (int i = 0; i < toolUses.Length; i++)
         {
             tools[i] = Array.Find(_activeTools, t => t.Name == toolUses[i].Name);
@@ -669,22 +686,35 @@ public sealed class ClaudeAgent
         }
 
         var results = new ToolResultBlock?[toolUses.Length];
+        var failures = new List<ToolFailure>();
         for (int i = 0; i < tasks.Length; i++)
         {
             if (tasks[i] is { } task)
             {
-                results[i] = await task.ConfigureAwait(false);
+                var (result, failure) = await task.ConfigureAwait(false);
+                results[i] = result;
+                if (failure is not null)
+                {
+                    failures.Add(failure);
+                }
+
                 if (tools[i] is { } tool)
                 {
-                    guard.Record(tool, !results[i]!.IsError);
+                    guard.Record(tool, !result.IsError);
                 }
             }
         }
 
-        return (results, pending);
+        return (results, pending, failures);
     }
 
-    private static async Task<ToolResultBlock> ExecuteToolAsync(
+    /// <summary>
+    /// Runs one tool call. A handler that throws is contained per
+    /// <see cref="AgentOptions.ToolFailures"/>: reported to the model as an error result (with the
+    /// exception returned to the caller) or propagated. The model is told the exception type but not
+    /// its message unless that is opted into, because everything the model sees is sent to the API.
+    /// </summary>
+    private async Task<(ToolResultBlock Result, ToolFailure? Failure)> ExecuteToolAsync(
         ToolDefinition? tool,
         string? violation,
         bool shadow,
@@ -699,27 +729,35 @@ public sealed class ClaudeAgent
         if (tool is null)
         {
             EmissaryDiagnostics.Fail(activity, "unknown tool");
-            return new ToolResultBlock(toolUse.Id, $"Unknown tool '{toolUse.Name}'.", IsError: true);
+            return (new ToolResultBlock(toolUse.Id, $"Unknown tool '{toolUse.Name}'.", IsError: true), null);
         }
 
         if (violation is not null)
         {
             EmissaryDiagnostics.Fail(activity, violation);
-            return new ToolResultBlock(toolUse.Id, violation, IsError: true);
+            return (new ToolResultBlock(toolUse.Id, violation, IsError: true), null);
         }
 
         if (shadow)
         {
             EmissaryDiagnostics.Tag(activity, "emissary.shadow", true);
-            return new ToolResultBlock(
+            return (new ToolResultBlock(
                 toolUse.Id,
                 $"[shadow] Call to '{toolUse.Name}' was recorded as a planned effect and not executed.",
-                IsError: false);
+                IsError: false), null);
         }
+
+        var policy = _options.ToolFailures;
+        using var timeoutSource = policy.Timeout is { } limit
+            ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
+            : null;
+        timeoutSource?.CancelAfter(policy.Timeout!.Value);
 
         try
         {
-            string content = await tool.Handler(toolUse.Input, cancellationToken).ConfigureAwait(false);
+            string content = await tool
+                .Handler(toolUse.Input, timeoutSource?.Token ?? cancellationToken)
+                .ConfigureAwait(false);
             if (tool.MaxResultLength is { } cap && content.Length > cap)
             {
                 EmissaryDiagnostics.Tag(activity, "emissary.tool.result_truncated", true);
@@ -727,12 +765,55 @@ public sealed class ClaudeAgent
                 content = ToolResultTruncation.Apply(content, cap);
             }
 
-            return new ToolResultBlock(toolUse.Id, content, IsError: false);
+            return (new ToolResultBlock(toolUse.Id, content, IsError: false), null);
         }
         catch (ToolArgumentException exception)
         {
             EmissaryDiagnostics.Fail(activity, exception.Message);
-            return new ToolResultBlock(toolUse.Id, exception.Message, IsError: true);
+            return (new ToolResultBlock(toolUse.Id, exception.Message, IsError: true), null);
         }
+        catch (Exception exception)
+        {
+            // The caller cancelling the run is not a tool failure.
+            cancellationToken.ThrowIfCancellationRequested();
+
+            bool timedOut = timeoutSource is { IsCancellationRequested: true };
+
+            // The full exception goes to telemetry and to the caller; what the model is told is
+            // deliberately thinner (see ToolFailureText).
+            EmissaryDiagnostics.Tag(activity, "error.type", exception.GetType().FullName);
+            EmissaryDiagnostics.Tag(activity, "emissary.tool.failure", exception.Message);
+            EmissaryDiagnostics.Fail(activity, timedOut ? "tool timed out" : "tool threw");
+
+            if (policy.Mode == ToolFailureMode.Propagate)
+            {
+                throw;
+            }
+
+            return (
+                new ToolResultBlock(toolUse.Id, ToolFailureText(toolUse.Name, exception, timedOut, policy), IsError: true),
+                new ToolFailure(toolUse.Id, toolUse.Name, exception, timedOut));
+        }
+    }
+
+    /// <summary>What the model is told about a failed tool call.</summary>
+    private static string ToolFailureText(
+        string toolName,
+        Exception exception,
+        bool timedOut,
+        ToolFailureOptions policy)
+    {
+        if (timedOut)
+        {
+            string seconds = policy.Timeout!.Value.TotalSeconds.ToString(
+                "0.###", System.Globalization.CultureInfo.InvariantCulture);
+            return $"Tool '{toolName}' was cancelled after {seconds}s without finishing. "
+                + "Try a narrower request, or continue without it.";
+        }
+
+        // Exception messages usually end in their own punctuation, so none is appended to them.
+        return policy.IncludeExceptionMessage
+            ? $"Tool '{toolName}' failed with {exception.GetType().Name}: {exception.Message}"
+            : $"Tool '{toolName}' failed with {exception.GetType().Name}.";
     }
 }

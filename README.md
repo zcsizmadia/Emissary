@@ -113,6 +113,11 @@ if (!eval.Passed) Console.WriteLine(eval.ToText());
 - **Resilience** — `options.Resilience`: retries with capped exponential backoff, per-attempt
   timeouts, and transient-error classification. Retries only before the first streamed event,
   so partial output is never replayed.
+- **Tool failure containment** — a tool that throws or exceeds `options.ToolFailures.Timeout` is
+  reported to the model as an error it can recover from, not an exception that ends the run. The
+  exception reaches *you* in full (`result.ToolFailures`, `AgentToolFailedEvent`, the span), while
+  the model is told only the exception type — messages carry connection strings and record data,
+  and everything the model sees goes to the API.
 - **Web search** — `options.WebSearch = new WebSearchOptions { MaxUses = 3 }` turns on Claude's
   server-side search (with domain allow/block lists).
 - **Durable chat sessions** — `ConversationSession` persists history by conversation id through
