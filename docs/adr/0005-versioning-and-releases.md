@@ -20,6 +20,10 @@
   `EnablePackageValidation` (set `PackageValidationBaselineVersion` after the first stable
   release so pack fails on unannounced API breaks), and a pack dry-run on every CI run.
 
+The concrete steps and gates for the first non-preview release are kept in
+[the release checklist](../release-checklist.md), including what must change in the docs at the tag
+and which API shapes to settle before semver freezes them.
+
 ## Operational notes
 
 - One-time setup: a NuGet.org API key scoped to `Emissary.*` stored as the `NUGET_API_KEY`

@@ -192,13 +192,16 @@ than inferred, so it is tracked as work rather than guessed at.
 | `EMS002` | Error | Unsupported parameter or member type |
 | `EMS003` | Info | Tool parameter has no `<param>` description |
 | `EMS004` | Error | Containing type is not `partial` |
-| `EMS012` | Error | A tool and its `CompensatedBy` target differ in static-ness |
 | `EMS006` | Error | Unsupported return type |
 | `EMS007` | Error | Generic tool method or generic containing type |
 | `EMS008` | Error | `[ClaudeSchema]` type is not schema-representable |
 | `EMS009` | Error | `CompensatedBy` target is not a `[ClaudeTool]` on the same type |
 | `EMS010` | Warning | `[AuthorizeTool]` without `[ClaudeTool]` — the policy would be ignored |
 | `EMS011` | Error | `MaxResultLength` is negative |
+| `EMS012` | Error | A tool and its `CompensatedBy` target differ in static-ness |
+
+`EMS005` is retired: it used to reject instance tool methods, which are now
+[supported](#tools-with-dependencies). The id is not reused.
 
 ## Composing agents
 
