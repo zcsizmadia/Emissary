@@ -121,16 +121,87 @@ public sealed class McpServerTests
             """{"jsonrpc":"2.0","id":23,"method":"tools/call","params":{}}""");
 
         var lines = body.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        // "null" is id-less and gets no response; the other four each get one.
-        await Assert.That(lines.Length).IsEqualTo(4);
-        await Assert.That(Response(body, 0)["error"]!["message"]!.GetValue<string>()).Contains("Unknown method");
-        await Assert.That(Response(body, 1)["result"]!["protocolVersion"]!.GetValue<string>()).IsEqualTo("2025-03-26");
-        await Assert.That(Response(body, 2)["error"]!["message"]!.GetValue<string>()).Contains("Unknown tool ''");
+        await Assert.That(lines.Length).IsEqualTo(5);
+
+        // A bare "null" parses but is not a request object, which is Invalid Request rather than
+        // silence — and, before this was guarded, an exception that killed the server.
+        await Assert.That(Response(body, 0)["error"]!["code"]!.GetValue<int>()).IsEqualTo(-32600);
+        await Assert.That(Response(body, 1)["error"]!["message"]!.GetValue<string>()).Contains("Unknown method");
+        await Assert.That(Response(body, 2)["result"]!["protocolVersion"]!.GetValue<string>()).IsEqualTo("2025-03-26");
         await Assert.That(Response(body, 3)["error"]!["message"]!.GetValue<string>()).Contains("Unknown tool ''");
+        await Assert.That(Response(body, 4)["error"]!["message"]!.GetValue<string>()).Contains("Unknown tool ''");
+    }
+
+    /// <summary>
+    /// Each of these is legal JSON that is not a request object this server can serve. Every one of
+    /// them used to throw <see cref="InvalidOperationException"/> out of the read loop and kill the
+    /// process — so the host saw the pipe close and every later call in the session failed.
+    /// </summary>
+    [Test]
+    [Arguments("""[{"jsonrpc":"2.0","id":1,"method":"tools/list"}]""", "batch")]
+    [Arguments("123", "number")]
+    [Arguments("\"a string\"", "string")]
+    [Arguments("true", "boolean")]
+    public async Task Requests_that_are_not_objects_are_rejected_without_killing_the_server(
+        string request,
+        string kind)
+    {
+        _ = kind;
+        var server = CreateToolServer();
+
+        // The bad line is answered, and the server keeps serving the next one.
+        string body = await RoundTripAsync(server, request, """{"jsonrpc":"2.0","id":2,"method":"tools/list"}""");
+
+        await Assert.That(Response(body, 0)["error"]!["code"]!.GetValue<int>()).IsEqualTo(-32600);
+        await Assert.That(Response(body, 1)["result"]!["tools"]).IsNotNull();
     }
 
     [Test]
-    public async Task Tool_exceptions_become_internal_errors()
+    public async Task A_non_string_method_or_params_does_not_kill_the_server()
+    {
+        string body = await RoundTripAsync(CreateToolServer(),
+            """{"jsonrpc":"2.0","id":30,"method":42}""",
+            """{"jsonrpc":"2.0","id":31,"method":"initialize","params":"not-an-object"}""",
+            """{"jsonrpc":"2.0","id":32,"method":"tools/call","params":42}""");
+
+        await Assert.That(Response(body, 0)["error"]!["message"]!.GetValue<string>()).Contains("Unknown method");
+        await Assert.That(Response(body, 1)["result"]!["protocolVersion"]!.GetValue<string>()).IsEqualTo("2025-03-26");
+        await Assert.That(Response(body, 2)["error"]!["message"]!.GetValue<string>()).Contains("Unknown tool ''");
+    }
+
+    [Test]
+    public async Task An_unexpected_failure_while_dispatching_costs_one_response_not_the_session()
+    {
+        // A tool whose schema is not valid JSON makes tools/list throw while building its reply.
+        var server = new EmissaryMcpServer(new EmissaryMcpServerOptions
+        {
+            Tools = { new ToolDefinition("broken", "d", "{not json", (_, _) => new ValueTask<string>("x")) },
+        });
+
+        string body = await RoundTripAsync(server,
+            """{"jsonrpc":"2.0","id":50,"method":"tools/list"}""",
+            """{"jsonrpc":"2.0","id":51,"method":"ping"}""");
+
+        var error = Response(body, 0)["error"]!;
+        await Assert.That(error["code"]!.GetValue<int>()).IsEqualTo(-32603);
+        await Assert.That(error["message"]!.GetValue<string>()).Contains("tools/list");
+
+        // Still serving.
+        await Assert.That(Response(body, 1)["result"]).IsNotNull();
+    }
+
+    [Test]
+    public async Task Ping_gets_an_empty_result()
+    {
+        // The spec says a server MUST respond to ping; silence looks like a dead server.
+        string body = await RoundTripAsync(CreateToolServer(), """{"jsonrpc":"2.0","id":40,"method":"ping"}""");
+
+        await Assert.That(Response(body)["result"]).IsNotNull();
+        await Assert.That(Response(body)["error"]).IsNull();
+    }
+
+    [Test]
+    public async Task Tool_exceptions_become_failed_tool_results()
     {
         var server = new EmissaryMcpServer(new EmissaryMcpServerOptions
         {
@@ -144,9 +215,13 @@ public sealed class McpServerTests
         string body = await RoundTripAsync(server,
             """{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"boom"}}""");
 
-        var error = Response(body)["error"]!;
-        await Assert.That(error["code"]!.GetValue<int>()).IsEqualTo(-32603);
-        await Assert.That(error["message"]!.GetValue<string>()).IsEqualTo("kaboom");
+        // A throwing tool is a failed call, not a broken protocol, so the caller gets an isError
+        // result it can reason about. The exception type is disclosed; the message is not (ADR 0007).
+        var result = Response(body)["result"]!;
+        await Assert.That(result["isError"]!.GetValue<bool>()).IsTrue();
+        string text = result["content"]![0]!["text"]!.GetValue<string>();
+        await Assert.That(text).IsEqualTo("Tool 'boom' failed with InvalidOperationException.");
+        await Assert.That(text).DoesNotContain("kaboom");
     }
 
     [Test]
