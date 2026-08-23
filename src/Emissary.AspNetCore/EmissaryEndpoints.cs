@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -71,7 +72,15 @@ public static class EmissaryEndpoints
             return;
         }
 
-        await store.DeleteAsync(request.ConversationId, context.RequestAborted).ConfigureAwait(false);
+        // Claim the run before resuming: resuming executes the privileged call a human just
+        // approved, and two approvals arriving together must not both run it. Whoever deletes it
+        // owns it; the loser gets 409 rather than a second execution.
+        if (!await store.DeleteAsync(request.ConversationId, CancellationToken.None).ConfigureAwait(false))
+        {
+            context.Response.StatusCode = StatusCodes.Status409Conflict;
+            return;
+        }
+
         var agent = context.RequestServices.GetRequiredService<ClaudeAgent>();
         await StreamEventsAsync(context, agent.ResumeStreamAsync(run, request.Approve, context.RequestAborted))
             .ConfigureAwait(false);
@@ -81,8 +90,41 @@ public static class EmissaryEndpoints
     {
         context.Response.ContentType = "text/event-stream";
         context.Response.Headers.CacheControl = "no-cache";
+
+        // Without this, a stock nginx (or any buffering proxy) holds every event and delivers the
+        // whole run in one burst at the end, which defeats the point of streaming.
+        context.Response.Headers["X-Accel-Buffering"] = "no";
+        // Required rather than optional: this feature backs HttpResponse.Body, so a server that
+        // lacks it could not have produced a response at all.
+        context.Features.GetRequiredFeature<IHttpResponseBodyFeature>().DisableBuffering();
+
         var store = context.RequestServices.GetService<IAgentStateStore>();
 
+        try
+        {
+            await StreamBodyAsync(context, events, store).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+            // The client hung up. Normal, and there is nobody left to tell.
+        }
+        catch (Exception exception)
+        {
+            // The response headers are long since committed, so an exception here cannot become a
+            // 500 — without an error event the caller just sees the connection die mid-answer and
+            // cannot tell that from a completed run. The type only, per ADR 0007.
+            await WriteAsync(context, "error",
+                JsonSerializer.Serialize(
+                    new ErrorDto(exception.GetType().Name), EmissaryWireContext.Default.ErrorDto))
+                .ConfigureAwait(false);
+        }
+    }
+
+    private static async Task StreamBodyAsync(
+        HttpContext context,
+        IAsyncEnumerable<AgentEvent> events,
+        IAgentStateStore? store)
+    {
         await foreach (var agentEvent in events.ConfigureAwait(false))
         {
             switch (agentEvent)
@@ -109,10 +151,32 @@ public static class EmissaryEndpoints
                             EmissaryWireContext.Default.ToolResultDto))
                         .ConfigureAwait(false);
                     break;
+                case AgentToolFailedEvent failed:
+                    await WriteAsync(context, "tool_failed",
+                        JsonSerializer.Serialize(
+                            new ToolFailedDto(
+                                failed.Failure.ToolUseId,
+                                failed.Failure.ToolName,
+                                failed.Failure.Exception.GetType().Name,
+                                failed.Failure.TimedOut),
+                            EmissaryWireContext.Default.ToolFailedDto))
+                        .ConfigureAwait(false);
+                    break;
+                case AgentHandoffEvent handoff:
+                    await WriteAsync(context, "handoff",
+                        JsonSerializer.Serialize(
+                            new HandoffDto(handoff.TargetName, handoff.Reason),
+                            EmissaryWireContext.Default.HandoffDto))
+                        .ConfigureAwait(false);
+                    break;
                 case AgentSuspendedEvent suspended:
                     if (store is not null)
                     {
-                        await store.SaveAsync(suspended.Suspension, context.RequestAborted).ConfigureAwait(false);
+                        // Never the request token: a client that disconnects at the moment of
+                        // suspension — the likeliest moment, since the agent has just gone quiet —
+                        // would cancel the save and lose the run, and the approval webhook would
+                        // then 404 forever.
+                        await store.SaveAsync(suspended.Suspension, CancellationToken.None).ConfigureAwait(false);
                     }
 
                     await WriteAsync(context, "suspended",

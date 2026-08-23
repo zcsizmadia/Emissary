@@ -11,8 +11,19 @@ app.MapEmissaryAgent("/agent");              // POST a message, stream the run a
 app.MapEmissaryApprovals("/agent/approvals"); // resume a suspended run
 ```
 
-The SSE stream emits `text`, `thinking`, `tool_call`, `tool_result`, `suspended`, and `completed`
-events. Suspensions are persisted automatically when an `IAgentStateStore` is registered.
+The SSE stream emits `text`, `thinking`, `tool_call`, `tool_result`, `tool_failed`, `handoff`,
+`suspended`, `completed`, and — if the run faults after the response has been committed — `error`.
+Suspensions are persisted automatically when an `IAgentStateStore` is registered, using a token the
+client cannot cancel: a browser that disconnects at the moment of suspension must not lose a run
+that is waiting for a human.
+
+Responses set `X-Accel-Buffering: no` and disable response buffering, so a proxy in front of the app
+does not hold the events and deliver the whole run in one burst.
+
+The approval webhook **claims** a run before resuming it — resuming executes the privileged call a
+human approved, so a retried or double-clicked webhook must not run it twice. The winner streams the
+run; a later request gets `404`, and one that loses the race gets `409`. That makes approval
+at-most-once by design: if a resume fails, the run is already consumed rather than replayable.
 Sample [`07-WebApi`](https://github.com/zcsizmadia/Emissary/tree/main/samples/07-WebApi) ships a
 Native AOT `Dockerfile`; [`05-SupportDesk`](https://github.com/zcsizmadia/Emissary/tree/main/samples/05-SupportDesk)
 adds Postgres and an Aspire dashboard via `docker compose`.

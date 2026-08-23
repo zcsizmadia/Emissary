@@ -45,13 +45,17 @@ public sealed class SqliteAgentStateStore : IAgentStateStore
     }
 
     /// <inheritdoc />
-    public async Task DeleteAsync(Guid conversationId, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteAsync(Guid conversationId, CancellationToken cancellationToken = default)
     {
         await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = connection.CreateCommand();
         command.CommandText = "DELETE FROM EmissarySuspensions WHERE ConversationId = $id;";
         command.Parameters.AddWithValue("$id", conversationId.ToString("N"));
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+        // A single DELETE is atomic, so the affected-row count is a safe claim: exactly one
+        // concurrent caller can see 1.
+        int affected = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        return affected > 0;
     }
 
     private async Task<SqliteConnection> OpenAsync(CancellationToken cancellationToken)
