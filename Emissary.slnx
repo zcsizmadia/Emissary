@@ -24,5 +24,6 @@
     <Project Path="samples/06-ZeroTrustAgent/ZeroTrustAgent.csproj" />
     <Project Path="samples/07-WebApi/WebApi.csproj" />
     <Project Path="samples/08-McpServer/McpServer.csproj" />
+    <Project Path="samples/10-InjectedTools/InjectedTools.csproj" />
   </Folder>
 </Solution>
