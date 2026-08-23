@@ -4,7 +4,10 @@
 
 [![CI](https://github.com/zcsizmadia/Emissary/actions/workflows/ci.yml/badge.svg)](https://github.com/zcsizmadia/Emissary/actions/workflows/ci.yml)
 [![NuGet](https://img.shields.io/nuget/v/Emissary.svg)](https://www.nuget.org/packages/Emissary)
+[![Docs](https://img.shields.io/badge/docs-emissary-512BD4)](https://zcsizmadia.github.io/Emissary/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+📖 **[Documentation](https://zcsizmadia.github.io/Emissary/)** — guides and full API reference.
 
 Emissary is a Claude-native agent framework for modern C#. Where other frameworks discover
 agent mistakes in production, Emissary shifts correctness left: **tool schemas and dispatchers
@@ -157,10 +160,10 @@ if (!eval.Passed) Console.WriteLine(eval.ToText());
   effort control, typed structured outputs end to end.
 
 **📐 An engineering bar you can audit.** 100% line and branch coverage enforced by CI (with a
-public, per-line justified baseline for compiler artifacts — currently six entries), the AOT
-proof executed on every commit, every sample compiled on every commit, and architecture
-decisions recorded as [ADRs](docs/adr). The performance claims are
-[measured, not asserted](docs/benchmarks.md): ~153 ns per tool dispatch, ~4 µs per replayed
+public, per-line justified baseline for compiler artifacts — nine entries covering eleven
+branches), the AOT proof executed on every commit, every sample compiled on every commit, and
+architecture decisions recorded as [ADRs](docs/adr). The performance claims are
+[measured, not asserted](docs/benchmarks.md): ~150 ns per tool dispatch, ~4 µs per replayed
 agent run, 1.53 MB AOT binary with a ~44 ms process lifetime.
 
 ## Quick start
@@ -206,6 +209,27 @@ var triage = await agent.RunAsync("Triage this…", MyJsonContext.Default.Ticket
 
 The schema is generated from the record, the API enforces it, and the result deserializes through
 System.Text.Json source generation — typed end to end, no reflection.
+
+## Documentation
+
+The full site — guides plus API reference generated from the XML docs — is at
+**[zcsizmadia.github.io/Emissary](https://zcsizmadia.github.io/Emissary/)**, rebuilt on every push
+to `main`. The guides are also plain Markdown in [`docs/guides`](docs/guides) if you would rather
+read them in the repo.
+
+| Guide | What it covers |
+|---|---|
+| [Getting started](https://zcsizmadia.github.io/Emissary/guides/getting-started.html) | First tool, first agent, what the generator emits |
+| [Tools and schemas](docs/guides/tools.md) | Descriptions, supported types, tools with injected dependencies, argument validation, structured outputs, diagnostics |
+| [Safety and contracts](docs/guides/safety.md) | Contracts, taint tracking, RBAC, shadow mode, human-in-the-loop gates, compensation |
+| [Testing](docs/guides/testing.md) | Record/replay, behavioral assertions, model-upgrade canarying, LLM-as-judge evaluation |
+| [Production](docs/guides/production.md) | Hosting, resilience, tool failures, tool concurrency, stop reasons, caching and cost, telemetry |
+| [Benchmarks](docs/benchmarks.md) | The measured numbers behind the performance claims |
+
+Design decisions live in [`docs/adr`](docs/adr) — why Emissary is
+[Claude-native](docs/adr/0001-claude-native.md), why a failed tool
+[tells the model less than it tells you](docs/adr/0007-tool-failure-disclosure.md), and why tests at
+the SDK boundary [must use SDK-produced values](docs/adr/0008-sdk-boundary-testing.md).
 
 ## Packages
 
