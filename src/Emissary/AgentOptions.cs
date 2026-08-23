@@ -86,6 +86,14 @@ public sealed class AgentOptions
     public ToolRules Rules { get; } = new();
 
     /// <summary>
+    /// How many of a turn's tool calls may execute at once. <see langword="null"/> (the default)
+    /// runs them all concurrently, which is fastest but lets one turn open as many connections as
+    /// the model asked for calls. Set it to the concurrency the slowest tool's dependency can take
+    /// — a database pool, a rate-limited API. Ordering of results is unaffected.
+    /// </summary>
+    public int? MaxParallelTools { get; set; }
+
+    /// <summary>
     /// Agents this one may transfer the conversation to. Each target becomes a
     /// <c>handoff_to_{name}</c> tool; calling it hands the conversation over (see
     /// <see cref="HandoffTarget"/>). Read once when the <see cref="ClaudeAgent"/> is constructed,

@@ -39,6 +39,20 @@ Transient failures (HTTP errors, timeouts, rate limits, overloaded/5xx) are retr
 exponential backoff. Retries only happen while establishing the stream — once output has started
 it is never re-issued — and genuine caller cancellation is never retried.
 
+## Bounding tool concurrency
+
+A single turn can ask for many tool calls, and by default they all execute at once — fast, but one
+turn can open as many connections as the model asked for calls, which is how an agent drains a
+database pool:
+
+```csharp
+options.MaxParallelTools = 4;
+```
+
+Calls beyond the cap queue and start as slots free. Results are still fed back in `tool_use` order,
+so contracts, trajectories, and replay are unaffected — only the overlap changes. Leave it unset
+when your tools are cheap and in-process.
+
 ## When a tool fails
 
 `options.Resilience` covers calls to the API. `options.ToolFailures` covers *your* tools, which
