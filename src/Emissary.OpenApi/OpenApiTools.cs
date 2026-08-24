@@ -162,8 +162,13 @@ public static class OpenApiTools
         {
             foreach (var server in servers.EnumerateArray())
             {
+                // The scheme is checked rather than assumed. A server url of "/v1" parses as an
+                // absolute file URI on Unix and not at all on Windows, so without this a relative
+                // server entry would send requests to file:///v1 on one platform and throw on the
+                // other. Only http(s) is an address this can send to.
                 if (server.ValueKind == JsonValueKind.Object
-                    && Uri.TryCreate(Text(server, "url"), UriKind.Absolute, out var parsed))
+                    && Uri.TryCreate(Text(server, "url"), UriKind.Absolute, out var parsed)
+                    && (parsed.Scheme == Uri.UriSchemeHttp || parsed.Scheme == Uri.UriSchemeHttps))
                 {
                     return parsed;
                 }

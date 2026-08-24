@@ -181,7 +181,7 @@ public sealed class OpenApiToolsTests
     {
         const string spec = """
         {
-          "servers": [{ "url": "https://q.example.com" }],
+          "servers": [{ "url": "http://q.example.com" }],
           "paths": {
             "/search": {
               "get": {
@@ -412,9 +412,17 @@ public sealed class OpenApiToolsTests
     [Test]
     public async Task An_unaddressable_specification_says_so()
     {
+        // Every way a `servers` entry can fail to be an address: not an object at all, unparseable,
+        // a scheme nothing can be sent to, and a relative path — which parses as an absolute file
+        // URI on Unix and not at all on Windows, so it must be rejected on its scheme either way.
         const string spec = """
         {
-          "servers": [{ "url": "/relative-only" }, "not-an-object"],
+          "servers": [
+            "not-an-object",
+            { "url": "://bad" },
+            { "url": "ftp://files.example.com" },
+            { "url": "/relative-only" }
+          ],
           "paths": { "/x": { "get": { "operationId": "x" } } }
         }
         """;
