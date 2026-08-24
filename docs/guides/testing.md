@@ -24,6 +24,33 @@ conversation shape — it throws `TrajectoryDivergenceException` rather than sil
 Check golden trajectories into your repo and replay them in CI; they cost microseconds and no
 API budget.
 
+## Hermetic replay
+
+Replay removes the model from the loop, but by default the tools still run for real — which is
+fine for a tool that adds two numbers and useless for one that charges a card. Pass
+`ToolReplayMode.FromRecording` and the tool results come out of the recording too:
+
+```csharp
+var replayed = new ClaudeAgent(
+    options, Trajectory.Load("refund.trajectory"), ToolReplayMode.FromRecording);
+
+var result = await replayed.RunAsync("Refund order A-1001");   // no database, no card charged
+```
+
+Nothing extra is recorded to make this work, and old `.trajectory` files replay hermetically
+without being re-recorded: a trajectory already contains every tool result, because each recorded
+request carries the conversation that was sent, and that conversation includes the results fed back
+from the previous turn.
+
+A call the recording does not cover throws `TrajectoryDivergenceException`, on the same principle
+as a diverging request — replay either reproduces the recorded run or says it cannot.
+
+What does *not* come from the recording is the decisions Emissary itself makes: contracts,
+authorization, taint and shadow mode are all evaluated before the cassette is consulted, so a
+replayed run reaches them the way the live one did. That is what makes it useful to tighten a rule
+and replay your golden suite: a call the new rule blocks comes back as a violation rather than as
+its recorded result.
+
 ## Behavioral assertions
 
 `Emissary.Testing` is framework-agnostic (works with TUnit, xUnit, NUnit, MSTest):

@@ -185,18 +185,25 @@ replayable offline.
 Replay re-executes real tools today, so a tool that touches a database still touches it. And nothing
 stops a run from getting more expensive release over release.
 
-- **Tool cassettes:** record tool inputs and outputs alongside the trajectory; on replay, serve the
-  recorded result. Modes for record / replay / passthrough, and a mismatch is a divergence like any
-  other.
-- **Cost regression gate:** cost is computable from recorded usage, so it needs no network —
-  `EmissaryAssert.That(result).CostUnder(...)`, and CI failing on drift past a threshold.
+- ~~**Tool cassettes:** record tool inputs and outputs alongside the trajectory; on replay, serve
+  the recorded result. Modes for record / replay / passthrough, and a mismatch is a divergence like
+  any other.~~ **Shipped** as `ToolReplayMode`, and it turned out to need no recording format at
+  all: a trajectory already carries every tool result, because each recorded request carries the
+  conversation that was sent. So no format change, no version bump, and every trajectory recorded
+  before this existed replays hermetically.
+- ~~**Cost regression gate:** cost is computable from recorded usage, so it needs no network —
+  `EmissaryAssert.That(result).CostUnder(...)`, and CI failing on drift past a threshold.~~
+  **Shipped** as `TokensUnder` and `CostUnder`.
 - Sequenced here deliberately: it makes every later integration (SQL, browser, MCP) testable without
   side effects, and it is the durable answer to a development loop that spends money.
 
 **Testing:** a cassette for a tool with an observable side effect, asserting the side effect does
-**not** happen on replay.
+**not** happen on replay. Done — and one more that matters: contracts, authorization and taint are
+evaluated *before* the cassette, so tightening a rule and replaying a golden suite tells you which
+recorded calls the new rule would have blocked.
 
-**Exit:** a sample whose tools require a database replays with the database absent.
+**Exit:** a sample whose tools require a database replays with the database absent. Open — the
+mechanism exists; it wants Phase 12's SQL tools to be demonstrated on something real.
 
 ## Phase 11 — Tools from specifications
 
@@ -333,6 +340,12 @@ Phases 0–7 are complete; work now lands as one focused feature per PR, each he
 15. **Dependabot auto-merge** — grouped minor and patch bumps merge on green; GitHub Actions bumps
     of any kind merge on green, because an action that misbehaves reddens CI rather than reaching a
     consumer. NuGet majors still wait for a human.
+16. **Cost as a unit test** — `TokensUnder` and `CostUnder` on a replayed run, priced through the
+    caller's own rates. A system prompt that quietly grows otherwise reaches you as an invoice.
+17. **Hermetic replay** — `ToolReplayMode.FromRecording` serves tool results out of the trajectory,
+    so a run whose tools charge a card replays charging nothing. It needed no new recording and no
+    format change: a trajectory already contains every tool result, because each recorded request
+    carries the conversation that was sent. Every existing `.trajectory` file is already a cassette.
 
 ### Needs the live API before it can be built
 
