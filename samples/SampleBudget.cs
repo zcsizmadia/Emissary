@@ -35,7 +35,7 @@ internal static class SampleBudget
     /// </summary>
     public const int MaxTurns = 6;
 
-    /// <summary>Applies all three limits to options a sample is about to run.</summary>
+    /// <summary>Applies the limits to options a sample is about to run.</summary>
     /// <param name="options">The options to constrain.</param>
     public static AgentOptions Constrain(AgentOptions options)
     {
@@ -43,6 +43,11 @@ internal static class SampleBudget
         options.Model = Model;
         options.TokenBudget = TokenBudget;
         options.MaxTurns = MaxTurns;
+
+        // Emissary defaults to adaptive thinking, which this model rejects outright
+        // ("adaptive thinking is not supported on this model"). Pinning a small model therefore
+        // means asking for no thinking as well.
+        options.Thinking = ThinkingMode.Disabled;
         return options;
     }
 }

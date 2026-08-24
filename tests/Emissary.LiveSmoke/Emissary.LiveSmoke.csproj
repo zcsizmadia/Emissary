@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The live gate: the checks that only the real API can answer, which is why they are here
+       rather than in Emissary.Tests. Every offline test in this repo passes against a fake
+       transport that never validates a request, so a whole class of defect is invisible to them
+       (ADR 0008). Not a unit-test project: it has no test framework, and it costs money to run.
+
+       Run it with "dotnet run" from this directory, with ANTHROPIC_API_KEY set. Without a key it
+       prints SKIPPED and exits 0, so it is safe to wire into CI unconditionally. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Emissary\Emissary.csproj" />
+    <ProjectReference Include="..\..\src\Emissary.SourceGenerators\Emissary.SourceGenerators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

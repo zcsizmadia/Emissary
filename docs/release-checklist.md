@@ -48,10 +48,12 @@ These are deliberate choices worth one last look, not defects:
 
 Neither of these can be done offline, and both are gates rather than nice-to-haves:
 
-- **Run `live-smoke` green against the release candidate.** Today's transport fixes — stop-reason
-  normalization, cancellation, retry classification — are verified against the real SDK's types but
-  have never run end to end against the API. [ADR 0008](adr/0008-sdk-boundary-testing.md) exists
-  because that gap is where two bugs hid. This is the single most important pre-1.0 check.
+- **Run the live gate green against the release candidate:**
+  `dotnet run --project tests/Emissary.LiveSmoke`. It asserts the things only the API can answer —
+  a strict schema round-tripping, a tool call executing, a truncated answer reporting `MaxTokens`,
+  and a cancelled stream stopping — each of which corresponds to a defect that shipped in a release.
+  It prints `SKIPPED` and exits 0 without a key, and costs about a fifth of a cent to run.
+  [ADR 0008](adr/0008-sdk-boundary-testing.md) exists because that gap is where two bugs hid.
 - **Re-record the sample trajectories on a cheap model.** `04-RecordReplay` and
   `06-ZeroTrustAgent` replay trajectories recorded with `claude-opus-5`, so those two samples cannot
   take the samples' cost cap on the model (replay verification rejects a mismatch — correctly).
