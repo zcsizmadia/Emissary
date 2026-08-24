@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <AssemblyName>AspireDashboardService</AssemblyName>
+    <RootNamespace>AspireDashboardService</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- UseOtlpExporter() lives here; the endpoint comes from the app host as an env var. -->
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Emissary.Aspire\Emissary.Aspire.csproj" />
+    <ProjectReference Include="..\..\..\src\Emissary.AspNetCore\Emissary.AspNetCore.csproj" />
+  </ItemGroup>
+
+</Project>

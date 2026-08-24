@@ -8,6 +8,7 @@
     <Project Path="src/Emissary.Mcp/Emissary.Mcp.csproj" />
     <Project Path="src/Emissary.Sqlite/Emissary.Sqlite.csproj" />
     <Project Path="src/Emissary.OpenApi/Emissary.OpenApi.csproj" />
+    <Project Path="src/Emissary.Aspire/Emissary.Aspire.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Emissary.Tests/Emissary.Tests.csproj" />
@@ -26,6 +27,8 @@
     <Project Path="samples/06-ZeroTrustAgent/ZeroTrustAgent.csproj" />
     <Project Path="samples/07-WebApi/WebApi.csproj" />
     <Project Path="samples/08-McpServer/McpServer.csproj" />
+    <Project Path="samples/09-AspireDashboard/AppHost/AspireDashboardAppHost.csproj" />
+    <Project Path="samples/09-AspireDashboard/Service/AspireDashboardService.csproj" />
     <Project Path="samples/10-InjectedTools/InjectedTools.csproj" />
     <Project Path="samples/11-OpenApiTools/OpenApiTools.csproj" />
   </Folder>

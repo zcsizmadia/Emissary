@@ -167,14 +167,71 @@ purpose, so compacted runs still record and replay
 
 ## Telemetry
 
-Emissary emits OpenTelemetry GenAI spans (`invoke_agent`, `chat`, `execute_tool`,
-`compact_context`) and metrics (token counters per tier, tool calls, run duration):
+Emissary emits OpenTelemetry GenAI spans and metrics whether or not anything is listening. Making
+something listen is one call:
 
 ```csharp
 builder.Services.AddOpenTelemetry()
-    .WithTracing(t => t.AddSource("Emissary").AddOtlpExporter())
-    .WithMetrics(m => m.AddMeter("Emissary").AddOtlpExporter());
+    .WithTracing(t => t.AddSource(EmissaryTelemetry.SourceName).AddOtlpExporter())
+    .WithMetrics(m => m.AddMeter(EmissaryTelemetry.MeterName).AddOtlpExporter());
 ```
+
+Forgetting it is the most common reason an agent looks untraced, which is indistinguishable from an
+agent that is not running — so the names are part of the public API rather than strings in this page.
+
+**Spans:** `invoke_agent` per run, `chat` per model call, `execute_tool` per tool call,
+`compact_context` when the conversation is compacted. Parallel tool calls appear side by side, which
+is how you find out whether an agent is really working in parallel or only claiming to.
+
+**Metrics:**
+
+| Instrument | Unit | What it answers |
+|---|---|---|
+| `emissary.usage.input_tokens` | `{token}` | spend, before the invoice |
+| `emissary.usage.output_tokens` | `{token}` | |
+| `emissary.usage.cache_creation_input_tokens` | `{token}` | cache hit rate is a division, not a guess |
+| `emissary.usage.cache_read_input_tokens` | `{token}` | |
+| `emissary.tool.calls` | `{call}` | which tools the model actually reaches for |
+| `emissary.tool.duration` | `s` | tool latency, tagged `gen_ai.tool.name` and `emissary.tool.outcome` |
+| `emissary.run.duration` | `s` | end-to-end |
+
+`emissary.tool.duration` is worth a panel of its own. Tool latency is where an agent's wall-clock
+time goes, and a tool that has become slow is invisible in run duration alone: the model narrates
+around it and the answer still arrives, a bit later, sounding fine. The outcome tag keeps a p99 from
+being dominated by calls that timed out.
+
+### Aspire, and any other host
+
+`Emissary.Aspire` does the wiring, binds the agent's settings from configuration, and adds a health
+check:
+
+```csharp
+builder.AddEmissaryAgent(options => options.Tools.Add(MyTools.LookupOrderTool));
+builder.Services.AddOpenTelemetry().UseOtlpExporter();
+```
+
+It takes no dependency on Aspire — it follows the client-integration conventions, so it works in any
+.NET host and lights the Aspire dashboard up when there is one. Configuration keys live under
+`Emissary:` (`Model`, `MaxTurns`, `TokenBudget`, `Thinking`, `Mode`, `PromptCaching`, `Effort`,
+`MaxTokens`, `MaxParallelTools`, `MaxHandoffs`, `SystemPrompt`, `ApiKey`, `OutputSchemaJson`), and
+code passed to `AddEmissaryAgent` is applied afterwards, so it wins. A misspelled value throws at
+startup instead of falling back to a default — a token budget that silently becomes "unlimited" is
+discovered on an invoice.
+
+The health check reports whether the process is *configured* to run an agent — a missing key, an
+empty model — and deliberately makes no API call. A check that talked to the model would bill you
+for being alive, and would report the provider's health rather than your own.
+
+See [`samples/09-AspireDashboard`](https://github.com/zcsizmadia/Emissary/tree/main/samples/09-AspireDashboard).
+
+### Grafana
+
+[`assets/grafana/emissary-dashboard.json`](https://github.com/zcsizmadia/Emissary/blob/main/assets/grafana/emissary-dashboard.json)
+imports as-is: tokens by tier, cache hit rate, tool latency percentiles, tool calls by tool, and run
+duration. It assumes a Prometheus datasource fed by the OTLP collector, which renames instruments on
+the way through — dots become underscores, counters gain `_total`, and a histogram in seconds gains
+`_seconds` (`emissary.tool.duration` → `emissary_tool_duration_seconds_bucket`). If your pipeline
+does not do that translation, the panel queries are the only thing to change.
 
 ## Interop
 

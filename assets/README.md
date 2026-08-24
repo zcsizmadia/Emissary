@@ -1,10 +1,11 @@
-# Brand assets
+# Assets
 
 | File | Use |
 |---|---|
 | `emissary-mark.svg` | The mark alone — README header, favicon, anywhere square |
 | `emissary-logo.svg` | Horizontal lockup: mark, wordmark, tagline |
 | `icon.png` | 128×128 raster, packed into every NuGet package (`PackageIcon`) |
+| `grafana/emissary-dashboard.json` | Grafana dashboard: tokens by tier, cache hit rate, tool latency, tool outcomes, run duration. Import as-is; see the [telemetry guide](../docs/guides/production.md#grafana) for the Prometheus naming it assumes. |
 
 ## The mark
 

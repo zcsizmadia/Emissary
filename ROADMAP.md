@@ -243,13 +243,32 @@ real with no credentials at all.
 
 The engineering is better than the demo, which is a marketing bug.
 
-- `Emissary.Aspire`: the agent as a resource in the app model, with dashboard panels for tokens,
-  cost, cache hit rate, and tool latency.
+- ~~`Emissary.Aspire`: the agent as a resource in the app model, with dashboard panels for tokens,
+  cost, cache hit rate, and tool latency.~~ **Shipped as a client integration, not a hosting
+  integration.** An agent is a library call, not a process, so there is no resource for the app model
+  to start; what the app model can usefully do is inject the API key and the OTLP endpoint, which is
+  two lines of stock Aspire in the sample rather than a package. The package instead does the part
+  that is easy to get wrong by hand: bind the agent's settings from configuration, subscribe
+  Emissary's `ActivitySource` and `Meter`, and add a health check that reports configuration without
+  paying for an API call. It takes no dependency on Aspire, so it works in any .NET host.
+  - Also added: **`emissary.tool.duration`**, tagged by tool name and outcome, because tool latency
+    was the one number on that list Emissary did not actually emit — and it is where an agent's
+    wall-clock time goes. Cost stays out of the library: it needs prices, and Emissary ships none
+    (`CostEstimator` takes yours).
+  - Also added: **`EmissaryTelemetry.SourceName`/`MeterName`**. The names were a documented magic
+    string, and forgetting to subscribe makes an agent look untraced — indistinguishable from an
+    agent that is not running.
 - `Emissary.Blazor`: a streaming chat component over `IAsyncEnumerable<AgentEvent>`, a tool-call
   timeline, and an approval widget wired to the human-in-the-loop gate.
-- A Grafana dashboard JSON and an OTel conventions note, so observability is drop-in.
+- ~~A Grafana dashboard JSON and an OTel conventions note, so observability is drop-in.~~
+  **Shipped** as `assets/grafana/emissary-dashboard.json` plus the instrument table in the
+  [telemetry guide](docs/guides/production.md#telemetry).
 
-**Exit:** sample `09-AspireDashboard` (already reserved) as the showcase, plus a Blazor sample.
+**Exit:** ~~sample `09-AspireDashboard` (already reserved) as the showcase~~ **done**, plus a Blazor
+sample. Note what CI can and cannot prove about the Aspire sample: it builds on every commit, and the
+service half runs standalone (`GET /health` returns 503 with an actionable message when no key is
+configured, which is the health check working). Launching the dashboard needs the Aspire CLI's
+orchestrator, which this repo deliberately does not download on every build.
 
 ## Phase 13 — Provenance and inference
 
