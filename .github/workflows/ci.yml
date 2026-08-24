@@ -13,8 +13,20 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
+  # Both platforms build and run the whole suite. This exists because managed code can behave
+  # differently on each and look correct on the one you happen to develop on: `Uri.TryCreate("/v1",
+  # UriKind.Absolute, ...)` succeeds on Unix, where a leading slash is an absolute file path, and
+  # fails on Windows. A test asserting such a URL is rejected therefore passed locally for the wrong
+  # reason. Two legs make a platform assumption fail in both directions instead of only the unlucky
+  # one.
   build-and-test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Never cancel the other leg: whether a failure reproduces on both platforms is the first
+      # thing worth knowing about it.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -35,7 +47,15 @@ jobs:
           dotnet test --solution Emissary.slnx --configuration Release --no-build
           -- --coverage --coverage-output-format cobertura --coverage-output coverage.cobertura.xml
 
+      # The steps below run on one platform only, and each is annotated with why.
+      #
+      # Coverage: the gate demands 100% of non-baselined branches, and a deliberately
+      # platform-divergent code path cannot reach 100% on both platforms at once — a branch that only
+      # one operating system can take is unreachable on the other. Linux is the authoritative
+      # measurement, matching the release workflow. The Windows leg is here for behaviour, which the
+      # test suite covers.
       - name: Coverage report
+        if: runner.os == 'Linux'
         run: |
           dotnet tool restore
           dotnet reportgenerator \
@@ -47,19 +67,27 @@ jobs:
           cat coverage-report/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Enforce 100% coverage gate
+        if: runner.os == 'Linux'
         shell: pwsh
         run: ./build/check-coverage.ps1
 
       - name: Upload coverage report
+        if: runner.os == 'Linux'
         uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: coverage-report
 
+      # Native AOT: the property under test is that nothing reflects, which is a property of the IL
+      # and not of the host. One publish proves it; a second would double the slowest step in CI to
+      # re-prove the same thing.
       - name: Native AOT proof (zero-reflection regression test)
+        if: runner.os == 'Linux'
         run: |
           dotnet publish tests/Emissary.AotProof --configuration Release
           ./tests/Emissary.AotProof/bin/Release/net10.0/linux-x64/publish/Emissary.AotProof
 
+      # Packing produces the same platform-independent nupkg either way.
       - name: Pack dry-run (packaging errors fail PRs, not releases)
+        if: runner.os == 'Linux'
         run: dotnet pack Emissary.slnx --configuration Release --no-build -o artifacts/packages-dryrun

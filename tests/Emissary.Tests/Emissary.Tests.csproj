@@ -13,6 +13,7 @@
     <ProjectReference Include="..\..\src\Emissary.AspNetCore\Emissary.AspNetCore.csproj" />
     <ProjectReference Include="..\..\src\Emissary.Extensions.AI\Emissary.Extensions.AI.csproj" />
     <ProjectReference Include="..\..\src\Emissary.Mcp\Emissary.Mcp.csproj" />
+    <ProjectReference Include="..\..\src\Emissary.OpenApi\Emissary.OpenApi.csproj" />
     <ProjectReference Include="..\..\src\Emissary.Sqlite\Emissary.Sqlite.csproj" />
   </ItemGroup>
 

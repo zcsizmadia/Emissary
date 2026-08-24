@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Emissary.OpenApi</RootNamespace>
+    <Description>Turns an OpenAPI specification into Emissary tools: schemas, HTTP binding, and taint-safe defaults derived from the spec's own verbs.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Emissary\Emissary.csproj" />
+  </ItemGroup>
+
+</Project>

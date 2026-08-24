@@ -123,6 +123,65 @@ Output past the cap is replaced with a short notice telling the model that data 
 to narrow its request, so it adapts instead of reasoning over a silently truncated answer. A
 negative cap is a build error (`EMS011`); `0` (the default) means no cap.
 
+## Tools from an OpenAPI specification
+
+`Emissary.OpenApi` reads a specification and hands back the tools it describes, so an agent can
+drive an API you wrote no tool code for:
+
+```csharp
+var http = new HttpClient();
+http.DefaultRequestHeaders.Authorization = new("Bearer", apiKey);
+
+var set = OpenApiTools.FromSpec(File.ReadAllText("petstore.json"), http);
+Console.WriteLine(set.ToText());          // what was generated, and what was skipped
+
+foreach (var tool in set.Tools) options.Tools.Add(tool);
+```
+
+Parameters, request bodies and `$ref`s become one self-contained input schema per operation;
+references are expanded because Claude's tool schemas cannot carry them, and a type that contains
+itself degrades to an open object rather than recursing forever.
+
+### The safety posture is derived, not configured
+
+This is the part worth understanding. A specification already says which operations read and which
+ones write, and that is exactly what Emissary's [taint tracking](safety.md) needs. So reads become
+`Untrusted` and writes become `Privileged`, which produces an invariant nobody had to write down:
+
+> once the agent has read a response body — content someone else authored — it cannot write back
+> through the same API.
+
+Point this at a stranger's specification and the resulting agent is injection-safe by construction.
+Both defaults are overridable (`ReadsAreUntrusted`, `WritesArePrivileged`), and `WritePolicy` puts
+every mutating operation behind an `IToolAuthorizer` check.
+
+### Selecting operations
+
+A large public specification will happily generate four hundred tools, and a prompt carrying four
+hundred tool schemas is expensive and *worse at choosing*. So `MaxTools` defaults to 64 and
+exceeding it throws at startup rather than at spend time:
+
+```csharp
+var options = new OpenApiToolOptions { Prefix = "stripe_", MaxResultLength = 8_000 };
+options.Tags.Add("Customers");            // or OperationIds for exact selection
+```
+
+### What it will not do
+
+| | |
+| --- | --- |
+| **Authentication** | The `HttpClient`'s job. Header parameters are never exposed to the model, because a model that can set headers can set `Authorization`. An operation that *requires* a header parameter is skipped and reported. |
+| **YAML** | Convert it to JSON first. |
+| **Remote `$ref`** | Refused, not fetched: reading a specification should not make network calls. Bundle the document first. |
+| **Non-JSON bodies** | Skipped and reported — `multipart/form-data` uploads are not modelled. |
+
+Nothing is skipped silently; `set.Skipped` names every operation and why, which is the difference
+between a debugging session and a line of startup output.
+
+A non-success response is returned to the model as content (`HTTP 404 Not Found: …`) rather than
+raised as a tool failure, because a refusal is an answer: `404 no such customer` is information the
+agent should act on.
+
 ## Structured outputs
 
 Mark a record `[ClaudeSchema]` to get a compile-time **strict** schema

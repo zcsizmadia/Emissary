@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>OpenApiToolsSample</AssemblyName>
+    <RootNamespace>OpenApiToolsSample</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Emissary.OpenApi\Emissary.OpenApi.csproj" />
+  </ItemGroup>
+
+</Project>
