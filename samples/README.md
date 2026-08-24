@@ -1,6 +1,8 @@
 # Emissary Samples
 
-Numbered in learning order — walk `01` → `09` to go from first tool to production deployment.
+Numbered in learning order — walk `01` → `09` to go from first tool to production deployment, then
+`10` and `11` for the two later additions: tools that need dependency injection, and tools generated
+from an OpenAPI specification.
 The full plan and the phase each sample lands in: see [ROADMAP.md](../ROADMAP.md#samples-plan-samples).
 
 ## Rules
@@ -15,7 +17,8 @@ The full plan and the phase each sample lands in: see [ROADMAP.md](../ROADMAP.md
   that gets stuck stops instead of spending. See [Cost](#cost) below — this is not Emissary's
   default, it is the samples' choice.
 - Samples that support it (04–06) run **fully offline via trajectory replay**, so readers without an
-  API key still get a working experience.
+  API key still get a working experience. `11-OpenApiTools` needs no key either: the API it drives
+  needs none, so the generated tool runs for real and only the model half is skipped.
 - One shared constant defines the recommended Claude model; samples never scatter model ids.
 
 ## Cost

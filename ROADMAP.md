@@ -209,17 +209,35 @@ mechanism exists; it wants Phase 12's SQL tools to be demonstrated on something 
 
 The generator's best trick, pointed at the largest available input.
 
-- `[ClaudeToolsFromOpenApi("stripe.json", Prefix = "stripe_")]` emitting tool definitions and
-  binders at compile time.
-- Safety defaults read from the spec: `GET` becomes an untrusted read, mutating verbs become
-  privileged, per-operation overrides available.
-- Selection by tag or operation id, because dumping four hundred tools into a prompt is its own
-  failure — with a diagnostic when the generated tool count crosses a threshold.
+- ~~`[ClaudeToolsFromOpenApi("stripe.json", Prefix = "stripe_")]` emitting tool definitions and
+  binders at compile time.~~ **Shipped as `Emissary.OpenApi`, at runtime rather than compile time.**
+  A `ToolDefinition` is data — a name, a description, a schema string and a delegate — and emitting
+  C# to produce data buys nothing while costing a JSON parser inside an analyzer, where taking a
+  dependency is a known source of pain. `OpenApiTools.FromSpec(json, httpClient, options)` returns
+  the same tools with none of that, and works on a specification fetched at startup. A compile-time
+  attribute that validates the document at build time and hands off to the same reader stays open as
+  a later addition, not a prerequisite.
+- ~~Safety defaults read from the spec: `GET` becomes an untrusted read, mutating verbs become
+  privileged, per-operation overrides available.~~ **Shipped**, and it is the part worth having:
+  reads are `Untrusted`, writes are `Privileged`, so the existing taint tracking enforces *once the
+  agent has read a response body, it cannot write back through the same API* — with no rule written
+  by hand. Overridable per tool set, and `WritePolicy` puts writes behind an `IToolAuthorizer`.
+- ~~Selection by tag or operation id … with a diagnostic when the generated tool count crosses a
+  threshold.~~ **Shipped** as `Tags`, `OperationIds` and `MaxTools` (64 by default, and exceeding it
+  throws at startup rather than at spend time).
 
-**Testing:** generator snapshot tests over real specs; the schema shapes that OpenAPI allows and
-Claude's tool schema does not.
+Deliberately out of scope, each reported rather than silently dropped: header and cookie parameters
+(a model that can set headers can set `Authorization`, so authentication stays the `HttpClient`'s
+job), YAML, remote `$ref` (reading a specification should not make network calls), and non-JSON
+request bodies.
 
-**Exit:** an agent driving a real public API with no hand-written tool code.
+**Testing:** 31 tests over the translation and the wire format, including the schema shapes OpenAPI
+allows and a self-contained tool schema cannot — a type that contains itself degrades to an open
+object instead of recursing forever.
+
+**Exit:** ~~an agent driving a real public API with no hand-written tool code.~~ **Done** —
+`samples/11-OpenApiTools` drives Open-Meteo, which needs no API key, so the generated tool runs for
+real with no credentials at all.
 
 ## Phase 12 — Make it visible
 
@@ -346,6 +364,10 @@ Phases 0–7 are complete; work now lands as one focused feature per PR, each he
     so a run whose tools charge a card replays charging nothing. It needed no new recording and no
     format change: a trajectory already contains every tool result, because each recorded request
     carries the conversation that was sent. Every existing `.trajectory` file is already a cassette.
+18. **Tools from an OpenAPI specification** — `Emissary.OpenApi`, whose real contribution is that the
+    safety posture comes out of the document: reads taint the run, writes are blocked once it is
+    tainted, so an agent pointed at a stranger's API is injection-safe by construction. Sample `11`
+    drives a real public API needing no credentials, so it demonstrates itself.
 
 ### Needs the live API before it can be built
 

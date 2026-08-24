@@ -28,5 +28,9 @@
       href: adr/0005-versioning-and-releases.md
     - name: 0006 Client-side compaction
       href: adr/0006-client-side-compaction.md
+    - name: 0007 Tool-failure disclosure
+      href: adr/0007-tool-failure-disclosure.md
+    - name: 0008 SDK-boundary testing
+      href: adr/0008-sdk-boundary-testing.md
 - name: API reference
   href: api/

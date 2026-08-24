@@ -245,13 +245,15 @@ the SDK boundary [must use SDK-produced values](docs/adr/0008-sdk-boundary-testi
 | `Emissary.AspNetCore` | SSE streaming endpoints and the human-approval webhook |
 | `Emissary.Mcp` | Expose tools or whole agents as an MCP stdio server |
 | `Emissary.Sqlite` | Durable suspended-run and conversation persistence |
+| `Emissary.OpenApi` | Tools generated from an OpenAPI specification, with taint-safe defaults read from its own verbs |
 | `Emissary.Extensions.AI` | `IChatClient` adapter, for Microsoft.Extensions.AI pipelines and Microsoft Agent Framework interop |
 
 ## Samples
 
-Nine runnable samples build in CI on every commit — documentation that cannot rot. Start at
+Ten runnable samples build in CI on every commit — documentation that cannot rot. Start at
 [`samples/01-HelloTool`](samples/01-HelloTool) and walk forward; `04-RecordReplay` and
-`06-ZeroTrustAgent` run fully offline via bundled trajectories, no API key needed. The
+`06-ZeroTrustAgent` run fully offline via bundled trajectories, and `11-OpenApiTools` drives a real
+public API without one either — no API key needed for any of the three. The
 [samples README](samples/README.md) has the map.
 
 ## Design
