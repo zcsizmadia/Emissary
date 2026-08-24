@@ -177,8 +177,8 @@ public sealed class EmissaryHostingTests
     {
         // The assertion that matters: without AddSource/AddMeter an agent looks untraced, which is
         // indistinguishable from an agent that is not running. So export for real and look.
-        var spans = new List<Activity>();
-        var exported = new List<Metric>();
+        var spans = new Exported<Activity>();
+        var exported = new Exported<Metric>();
 
         var builder = Builder(("Emissary:Model", "aspire-test-model"), ("Emissary:ApiKey", "sk-x"));
         builder.AddEmissaryAgent(options => options.Tools.Add(SampleTools.EchoTool));
@@ -201,14 +201,87 @@ public sealed class EmissaryHostingTests
         tracerProvider.ForceFlush();
         meterProvider.ForceFlush();
 
-        await Assert.That(spans.Select(s => s.OperationName))
+        await Assert.That(spans.Snapshot().Select(s => s.OperationName))
             .Contains(name => name.StartsWith("invoke_agent", StringComparison.Ordinal));
-        await Assert.That(spans.Select(s => s.Source.Name)).Contains(EmissaryTelemetry.SourceName);
+        await Assert.That(spans.Snapshot().Select(s => s.Source.Name))
+            .Contains(EmissaryTelemetry.SourceName);
 
         // Tool latency is new in this change, and it is the metric an agent's wall-clock time
         // actually hides in.
-        await Assert.That(exported.Select(m => m.Name)).Contains("emissary.tool.duration");
-        await Assert.That(exported.Select(m => m.MeterName).Distinct())
+        await Assert.That(exported.Snapshot().Select(m => m.Name)).Contains("emissary.tool.duration");
+        await Assert.That(exported.Snapshot().Select(m => m.MeterName).Distinct())
             .Contains(EmissaryTelemetry.MeterName);
+    }
+
+    /// <summary>
+    /// Somewhere to export into that tolerates the truth: an <see cref="ActivitySource"/> is
+    /// process-global, so a listener subscribed to Emissary also receives spans from every other
+    /// test running at that moment. Enumerating a plain <see cref="List{T}"/> while the exporter is
+    /// still appending to it throws — on a fast machine, most of the time.
+    /// </summary>
+    private sealed class Exported<T> : ICollection<T>
+    {
+        private readonly List<T> _items = [];
+
+        public int Count
+        {
+            get { lock (_items) { return _items.Count; } }
+        }
+
+        public bool IsReadOnly => false;
+
+        public void Add(T item)
+        {
+            lock (_items)
+            {
+                _items.Add(item);
+            }
+        }
+
+        /// <summary>A copy that nothing else is writing to, safe to assert over.</summary>
+        public T[] Snapshot()
+        {
+            lock (_items)
+            {
+                return [.. _items];
+            }
+        }
+
+        public void Clear()
+        {
+            lock (_items)
+            {
+                _items.Clear();
+            }
+        }
+
+        public bool Contains(T item)
+        {
+            lock (_items)
+            {
+                return _items.Contains(item);
+            }
+        }
+
+        public void CopyTo(T[] array, int arrayIndex)
+        {
+            lock (_items)
+            {
+                _items.CopyTo(array, arrayIndex);
+            }
+        }
+
+        public bool Remove(T item)
+        {
+            lock (_items)
+            {
+                return _items.Remove(item);
+            }
+        }
+
+        public IEnumerator<T> GetEnumerator() => ((IEnumerable<T>)Snapshot()).GetEnumerator();
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() =>
+            GetEnumerator();
     }
 }
