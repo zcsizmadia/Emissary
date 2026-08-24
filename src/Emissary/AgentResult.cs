@@ -73,6 +73,12 @@ public sealed class AgentResult
     public required AgentUsage Usage { get; init; }
 
     /// <summary>
+    /// The model that produced the run. Needed to price <see cref="Usage"/>, and worth recording
+    /// when comparing runs across model versions.
+    /// </summary>
+    public string Model { get; init; } = "";
+
+    /// <summary>
     /// Whether untrusted tool output (a tool marked <see cref="ClaudeToolAttribute.Untrusted"/>)
     /// entered the conversation during the run.
     /// </summary>

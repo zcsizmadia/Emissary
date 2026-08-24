@@ -213,6 +213,57 @@ public sealed class AgentRunExpectations
             : string.Join(", ", _result.ToolFailures.Select(
                 f => $"{f.ToolName}: {f.Exception.GetType().Name}{(f.TimedOut ? " (timed out)" : "")}"));
 
+    /// <summary>
+    /// The run must have spent fewer than this many tokens, counted as input plus output — the
+    /// same total <see cref="AgentOptions.TokenBudget"/> caps.
+    /// </summary>
+    /// <remarks>
+    /// Over a replayed run this is exact and needs no network, which makes it a regression gate:
+    /// a prompt that quietly grows, a tool that starts returning far more than it used to, or a
+    /// loop that takes an extra turn all show up as a number going the wrong way. Cheaper to
+    /// assert than to notice on an invoice.
+    /// </remarks>
+    /// <param name="totalTokens">The exclusive upper bound on input + output tokens.</param>
+    public AgentRunExpectations TokensUnder(long totalTokens)
+    {
+        long spent = _result.Usage.InputTokens + _result.Usage.OutputTokens;
+        if (spent >= totalTokens)
+        {
+            throw Failure(
+                $"expected the run to spend fewer than {totalTokens} tokens, but it spent {spent} "
+                + $"({_result.Usage.InputTokens} in / {_result.Usage.OutputTokens} out).");
+        }
+
+        return this;
+    }
+
+    /// <summary>
+    /// The run must have cost less than this, priced from <see cref="AgentResult.Usage"/> with the
+    /// caller's own rates. Cache reads and writes are billed at their own rates, so a cache-heavy
+    /// run costs far less than its raw token count suggests.
+    /// </summary>
+    /// <param name="amount">The exclusive upper bound, in whatever currency the rates are in.</param>
+    /// <param name="estimator">Price table covering the run's model.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="estimator"/> is null.</exception>
+    public AgentRunExpectations CostUnder(decimal amount, CostEstimator estimator)
+    {
+        ArgumentNullException.ThrowIfNull(estimator);
+
+        if (!estimator.TryEstimate(_result.Model, _result.Usage, out decimal cost))
+        {
+            throw Failure(
+                $"cannot price the run: no rates are registered for model '{_result.Model}'. "
+                + "Register(model, pricing) on the estimator first.");
+        }
+
+        if (cost >= amount)
+        {
+            throw Failure($"expected the run to cost less than {amount}, but it cost {cost}.");
+        }
+
+        return this;
+    }
+
     /// <summary>The final assistant text must contain this fragment (ordinal comparison).</summary>
     /// <param name="expected">The expected fragment.</param>
     public AgentRunExpectations FinalTextContains(string expected)
