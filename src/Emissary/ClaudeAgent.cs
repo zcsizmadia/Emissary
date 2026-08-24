@@ -557,6 +557,7 @@ public sealed class ClaudeAgent
             Conversation = conversation,
             StopReason = stopReason,
             Usage = usage,
+            Model = _options.Model,
             Tainted = guard.Tainted,
             PlannedEffects = plannedEffects,
             ToolFailures = toolFailures,

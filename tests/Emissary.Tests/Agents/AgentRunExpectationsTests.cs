@@ -39,6 +39,78 @@ public sealed class AgentRunExpectationsTests
         ToolFailures = failures,
     };
 
+    private static AgentResult Spent(long input, long output, long cacheWrite = 0, long cacheRead = 0) => new()
+    {
+        Conversation = Conversation.Start().Append(Message.User("go")),
+        StopReason = AgentStopReason.Completed,
+        Usage = new AgentUsage(input, output, cacheWrite, cacheRead),
+        Model = "claude-test-1",
+    };
+
+    private static CostEstimator Rates() => new CostEstimator().Register(
+        "claude-test-1",
+        new ModelPricing(
+            InputPerMillion: 10m,
+            OutputPerMillion: 100m,
+            CacheWritePerMillion: 12.5m,
+            CacheReadPerMillion: 1m));
+
+    [Test]
+    public async Task Token_budget_expectations_use_input_plus_output()
+    {
+        var run = Spent(input: 8_000, output: 2_000);
+
+        await Assert.That(EmissaryAssert.That(run).TokensUnder(10_001)).IsNotNull();
+
+        var thrown = Assert.Throws<EmissaryAssertionException>(() => EmissaryAssert.That(run).TokensUnder(10_000));
+        await Assert.That(thrown!.Message).Contains("it spent 10000 (8000 in / 2000 out)");
+    }
+
+    [Test]
+    public async Task Cost_expectations_price_the_run_from_the_callers_rates()
+    {
+        // 8k input at 10/M = 0.08; 2k output at 100/M = 0.20 => 0.28.
+        var run = Spent(input: 8_000, output: 2_000);
+        var rates = Rates();
+
+        await Assert.That(EmissaryAssert.That(run).CostUnder(0.29m, rates)).IsNotNull();
+
+        var thrown = Assert.Throws<EmissaryAssertionException>(() => EmissaryAssert.That(run).CostUnder(0.28m, rates));
+        await Assert.That(thrown!.Message).Contains("cost less than 0.28");
+        await Assert.That(thrown.Message).Contains("it cost 0.28");
+    }
+
+    [Test]
+    public async Task Cached_tokens_are_priced_at_their_own_rates()
+    {
+        // A cache-heavy run: the same input token count, mostly served from cache at 1/M.
+        var cached = Spent(input: 0, output: 2_000, cacheWrite: 0, cacheRead: 8_000);
+
+        // 8k cache reads at 1/M = 0.008, plus 0.20 output => 0.208, well under the uncached 0.28.
+        await Assert.That(EmissaryAssert.That(cached).CostUnder(0.21m, Rates())).IsNotNull();
+
+        // But cache reads are not counted by the token budget, which tracks input + output.
+        await Assert.That(EmissaryAssert.That(cached).TokensUnder(2_001)).IsNotNull();
+    }
+
+    [Test]
+    public async Task Pricing_an_unregistered_model_says_so()
+    {
+        var run = new AgentResult
+        {
+            Conversation = Conversation.Start().Append(Message.User("go")),
+            StopReason = AgentStopReason.Completed,
+            Usage = new AgentUsage(1, 1),
+            Model = "claude-unpriced",
+        };
+
+        var thrown = Assert.Throws<EmissaryAssertionException>(
+            () => EmissaryAssert.That(run).CostUnder(1m, Rates()));
+
+        await Assert.That(thrown!.Message).Contains("no rates are registered for model 'claude-unpriced'");
+        await Assert.That(() => EmissaryAssert.That(run).CostUnder(1m, null!)).Throws<ArgumentNullException>();
+    }
+
     [Test]
     public async Task Tool_failure_expectations_pass_and_fail_with_useful_messages()
     {

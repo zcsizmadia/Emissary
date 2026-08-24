@@ -55,6 +55,26 @@ exceptions; `ToolFailed("charge_card")` and `ToolTimedOut("slow_report")` assert
 failure is the thing under test. `Complete()` fails on every stop reason that leaves the answer cut
 short and says which one it was.
 
+## Cost as a unit test
+
+A replayed run carries the usage that was recorded, so what a run *costs* is a deterministic number
+available with no network — which makes it assertable like any other behaviour:
+
+```csharp
+EmissaryAssert.That(result)
+    .TokensUnder(12_000)              // input + output, the same total TokenBudget caps
+    .CostUnder(0.05m, estimator);     // priced with your own rates
+```
+
+This catches a class of regression that otherwise reaches you as an invoice: a system prompt that
+quietly grows, a tool that starts returning ten times what it used to, a contract change that adds
+a turn to every run. None of those break a test that only checks the final answer.
+
+`CostUnder` prices `result.Usage` through a [`CostEstimator`](production.md#prompt-caching-and-cost)
+you register rates on — Emissary ships no prices, since they change. Cache reads and writes are
+billed at their own rates, so a cache-heavy run costs far less than its raw token count suggests;
+`TokensUnder` deliberately counts only input plus output, matching `TokenBudget`, so the two agree.
+
 ## Model-upgrade canarying
 
 The question every team dreads — *what changes when we upgrade the model?* — becomes a diff:
