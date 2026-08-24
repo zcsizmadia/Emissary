@@ -46,4 +46,5 @@ against `FakeRateLimitException` and `ServiceUnavailableException`, classes the 
 - A heuristic that repairs a boundary mistake (inferring `tool_use` from content blocks) must not be
   the only thing standing between a bug and production. Keep it, and test the thing it protects.
 - Live smoke runs (`.github/workflows/live-smoke.yml`) remain the last line of defence, not the
-  first: they need credentials and cost money, so they cannot be the PR gate.
+  first: they need credentials and cost money, so they cannot be the PR gate. They are also manual
+  only — nothing should spend money on a timer that nobody chose to start.
