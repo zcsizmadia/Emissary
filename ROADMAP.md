@@ -132,6 +132,138 @@ validation, release.yml (tag → gauntlet → NuGet + GitHub release), CI pack d
 NuGet API key + prefix reservation (owner action), first preview tag, BenchmarkDotNet numbers,
 sample 09-AspireDashboard, docs site, announcement.*
 
+## Phase 8 — Earn 1.0
+
+Not features: the verification that makes a semver commitment honest. Phases 0–7 built the thing;
+this phase proves it works where it has never been run.
+
+- **Ship `0.1.0-preview.3` first.** What is published today has stop reasons collapsing to
+  `end_turn` and cancellation that stops nothing. Those fixes are on `main` and should reach anyone
+  on preview.2 before 1.0 is even discussed.
+- **`live-smoke` green against the release candidate.** The transport was rewritten — stop-reason
+  normalization, cancellation lifetime, transient classification, retry bounds — and none of it has
+  executed against the real API. [ADR 0008](docs/adr/0008-sdk-boundary-testing.md) exists because
+  that exact gap hid two bugs.
+- **Re-record `04` and `06` trajectories** on the small model, so every sample takes the cost cap.
+- **Settle the API before semver freezes it:** `EmissaryDefaults.Model` from `const` to
+  `static readonly` (a `const` is inlined into consumers, which is wrong for a value that exists
+  because model ids change), and a last read of the unavoidably-public `ToolArguments` surface.
+- **Soak.** A real workload, a few weeks, no new defect of the "silently wrong in production" class.
+
+**Testing:** nothing new — [the release checklist](docs/release-checklist.md) *is* the test.
+
+**Exit:** `v1.0.0` tagged, `PackageValidationBaselineVersion` set, live smoke green on the tag.
+
+## Phase 9 — Inherit the MCP ecosystem (client side)
+
+Emissary is an MCP *server*. The inverse is worth more: consume any MCP server as Emissary tools,
+and give the whole MCP ecosystem the thing it has no notion of — enforcement.
+
+```csharp
+options.Tools.AddMcpServer("github");                     // untrusted by default
+options.Rules.Require("create_pr", prerequisite: "run_tests");
+```
+
+- Discovery via `tools/list`, dispatch via `tools/call`, over stdio first.
+- **A tool you did not write is untrusted by default** — it is someone else's code reading the
+  world, so its output taints the run unless the caller says otherwise. Worth an ADR: this is the
+  central tension of the phase, between inheriting tools and guaranteeing behavior.
+- Remote tools get the full apparatus: contracts by wire name, RBAC, shadow mode, approval gates,
+  per-call timeouts, result caps.
+- Defensive binding: we do not own the remote schema, so arguments and results are validated at the
+  boundary the way generated binders validate ours.
+
+**Testing:** a fake MCP server over pipes (the existing server tests supply the harness) — malformed
+responses, protocol errors, a server that dies mid-call, a tool whose schema disagrees with what it
+returns.
+
+**Exit:** a sample using a public MCP server where a taint rule provably blocks a privileged action,
+replayable offline.
+
+## Phase 10 — Hermetic replay, and cost as a test
+
+Replay re-executes real tools today, so a tool that touches a database still touches it. And nothing
+stops a run from getting more expensive release over release.
+
+- **Tool cassettes:** record tool inputs and outputs alongside the trajectory; on replay, serve the
+  recorded result. Modes for record / replay / passthrough, and a mismatch is a divergence like any
+  other.
+- **Cost regression gate:** cost is computable from recorded usage, so it needs no network —
+  `EmissaryAssert.That(result).CostUnder(...)`, and CI failing on drift past a threshold.
+- Sequenced here deliberately: it makes every later integration (SQL, browser, MCP) testable without
+  side effects, and it is the durable answer to a development loop that spends money.
+
+**Testing:** a cassette for a tool with an observable side effect, asserting the side effect does
+**not** happen on replay.
+
+**Exit:** a sample whose tools require a database replays with the database absent.
+
+## Phase 11 — Tools from specifications
+
+The generator's best trick, pointed at the largest available input.
+
+- `[ClaudeToolsFromOpenApi("stripe.json", Prefix = "stripe_")]` emitting tool definitions and
+  binders at compile time.
+- Safety defaults read from the spec: `GET` becomes an untrusted read, mutating verbs become
+  privileged, per-operation overrides available.
+- Selection by tag or operation id, because dumping four hundred tools into a prompt is its own
+  failure — with a diagnostic when the generated tool count crosses a threshold.
+
+**Testing:** generator snapshot tests over real specs; the schema shapes that OpenAPI allows and
+Claude's tool schema does not.
+
+**Exit:** an agent driving a real public API with no hand-written tool code.
+
+## Phase 12 — Make it visible
+
+The engineering is better than the demo, which is a marketing bug.
+
+- `Emissary.Aspire`: the agent as a resource in the app model, with dashboard panels for tokens,
+  cost, cache hit rate, and tool latency.
+- `Emissary.Blazor`: a streaming chat component over `IAsyncEnumerable<AgentEvent>`, a tool-call
+  timeline, and an approval widget wired to the human-in-the-loop gate.
+- A Grafana dashboard JSON and an OTel conventions note, so observability is drop-in.
+
+**Exit:** sample `09-AspireDashboard` (already reserved) as the showcase, plus a Blazor sample.
+
+## Phase 13 — Provenance and inference
+
+Turning the audit story from a boolean into an explanation, and observation into enforcement.
+
+- **Taint provenance:** not `Tainted: true` but the path — which untrusted bytes reached which
+  decision — as a report an auditor can read.
+- **Contract inference:** mine a golden suite and propose rules (*"refund always followed verify
+  across 200 runs — add `Require`?"*), emitted as code to paste.
+- **Trajectory bisect and a step debugger:** canary says behavior changed; these say which turn.
+
+**Exit:** the auditor demo answers *why* a call was blocked with a path, not a flag.
+
+## Phase 14 — Ecosystem bridges
+
+Each of these is a safety story someone else's ecosystem cannot tell.
+
+- **Semantic Kernel / Microsoft Agent Framework:** bidirectional — their plugins as Emissary tools,
+  Emissary tools as their plugins. `IChatClient` is already the beachhead.
+- **Playwright:** browser tools where every page read is untrusted automatically. Web-browsing agents
+  that provably cannot be injected into spending money.
+- **Guarded SQL** (Dapper/EF Core): parameterized-only, statement allow-list, row caps, results
+  marked untrusted.
+- **Identity-backed RBAC:** `ClaimsPrincipal` to `IToolAuthorizer`, so authorization is real auth
+  rather than a policy string.
+- **Durable resumption via MassTransit or Hangfire** — their sagas and our compensation are the same
+  idea with a model in the loop.
+
+**Exit:** each bridge ships with a sample and its safety defaults on by default.
+
+## Phase 15 — Distribution
+
+- **`emissary-canary` GitHub Action:** run golden suites against a candidate model on a pull request
+  and comment the behavioral diff. Every user of it advertises the idea.
+- **`Emissary.RedTeam`** (promoted from the backlog): a curated prompt-injection corpus run in CI,
+  asserting no privileged tool fires.
+
+**Exit:** this repository's own pull requests gated by the action.
+
 ## Samples plan (`samples/`)
 
 Numbered in learning order — a reader should be able to walk 01 → 09 and end up an expert.
@@ -190,6 +322,17 @@ Phases 0–7 are complete; work now lands as one focused feature per PR, each he
 11. **Suspension and SSE hardening** — a client disconnect no longer loses a suspended run, an
     approval is at-most-once (`DeleteAsync` is an atomic claim), responses are not proxy-buffered,
     and a mid-stream failure emits an `error` event instead of a dead connection.
+12. **Failure assertions** — `NoToolFailures()`, `ToolFailed`, `ToolTimedOut`, `Complete()`, because
+    a failing tool gets narrated around and an incomplete answer reads like a good one.
+13. **Sample cost caps** — a small model, a 50k token budget and six turns for every sample, since
+    the defaults are Opus with no ceiling. `04` and `06` keep the recorded model: replay
+    verification rejects a mismatch, which is the guard working.
+14. **Brand and docs entry points** — the mark, the lockup, a NuGet icon on every package, the
+    published site linked from the README at last, and a docs review that found the install command
+    in the README did not work against the only published version.
+15. **Dependabot auto-merge** — grouped minor and patch bumps merge on green; GitHub Actions bumps
+    of any kind merge on green, because an action that misbehaves reddens CI rather than reaching a
+    consumer. NuGet majors still wait for a human.
 
 ### Needs the live API before it can be built
 
@@ -202,17 +345,25 @@ wait for API credits rather than being guessed at:
 - **Re-running `live-smoke`** against the fixed transport, which is the only end-to-end proof that
   the stop-reason and cancellation fixes behave as measured.
 
-## Post-1.0 backlog (in order)
+## Unscheduled backlog
 
-1. Model-upgrade canarying as a product (golden suites vs. new models, Batch API overnight runs).
-2. Orleans distributed hosting (`Emissary.Orleans`).
-3. NuGet-as-skill-marketplace conventions (`Emissary.Skills.*`).
-4. `Emissary.RedTeam` adversarial simulation personas.
-5. Managed Agents bridge (write once, self-host or Anthropic-hosted).
-6. Edge agents (offline queue + sync).
-7. Conversation branching; speculative tool warm-up.
+Not in a phase yet — parked deliberately, in rough order of appeal:
+
+1. Orleans distributed hosting (`Emissary.Orleans`) — a grain per conversation.
+2. NuGet-as-skill-marketplace conventions (`Emissary.Skills.*`).
+3. Managed Agents bridge (write once, self-host or Anthropic-hosted).
+4. Edge agents (offline queue + sync).
+5. Conversation branching; speculative tool warm-up.
+6. Budget-aware agents — tell the model its remaining token budget so it can adapt, rather than being
+   guillotined at the cap.
+7. Server-side search round-trip (blocked on live verification; see above).
+
+Promoted out of this list into phases: model-upgrade canarying and `Emissary.RedTeam` are Phase 15,
+because packaging them as a GitHub Action is what makes them spread.
 
 ---
 
 *Sequencing logic: the testing story (Phase 3) lands before the features that need guarding
-(Phases 4–5) — replay is both a headline feature and our own test infrastructure. Dogfooding flywheel.*
+(Phases 4–5) — replay is both a headline feature and our own test infrastructure. Dogfooding
+flywheel. The same logic orders the new phases: Phase 8 proves what exists before semver freezes it,
+and Phase 10 makes tools replayable before Phases 11–14 add tools with side effects worth replaying.*
