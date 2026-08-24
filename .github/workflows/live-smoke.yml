@@ -2,12 +2,16 @@ name: Live smoke
 
 # Validates the real Claude transport (streaming, tool loop, structured outputs) against the
 # live API. Deliberately OFF the PR gate: it is non-deterministic, costs a few cents, and needs
-# a secret forks can't see. Run it manually or on a weekly schedule. It skips cleanly when the
-# ANTHROPIC_API_KEY secret is not configured.
+# a secret forks can't see. It skips cleanly when the ANTHROPIC_API_KEY secret is not configured.
+#
+# Manual only, on purpose. This spends real money, and nothing should spend money on a timer that
+# nobody chose to start — the key holder decides when a run happens. Restore the schedule when
+# there is a reason to want unattended runs (a release candidate soak, for instance) by adding:
+#
+#   schedule:
+#     - cron: "0 6 * * 1"   # Mondays 06:00 UTC
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 6 * * 1"   # Mondays 06:00 UTC
 
 permissions:
   contents: read
