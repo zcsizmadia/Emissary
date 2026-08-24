@@ -368,6 +368,11 @@ Phases 0–7 are complete; work now lands as one focused feature per PR, each he
     safety posture comes out of the document: reads taint the run, writes are blocked once it is
     tainted, so an agent pointed at a stranger's API is injection-safe by construction. Sample `11`
     drives a real public API needing no credentials, so it demonstrates itself.
+19. **CI on Linux and Windows** — prompted by the bug the OpenAPI reader shipped with:
+    `Uri.TryCreate("/v1", UriKind.Absolute, …)` succeeds on Unix and fails on Windows, so a test
+    asserting a relative server url is rejected passed locally for the wrong reason and failed in
+    CI. One platform is a blind spot in whichever direction you do not develop on. The coverage
+    gate, AOT proof and pack stay on one leg, each for a stated reason.
 
 ### Needs the live API before it can be built
 
