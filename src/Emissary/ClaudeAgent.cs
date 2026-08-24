@@ -16,6 +16,10 @@ public sealed class ClaudeAgent
     private readonly ToolDefinition[] _activeTools;
     private readonly Dictionary<string, HandoffTarget> _handoffsByTool = new(StringComparer.Ordinal);
 
+    // Set only for a hermetic replay: tool results then come from the recording instead of the
+    // tool running again.
+    private readonly ToolCassette? _cassette;
+
     /// <summary>Creates an agent talking to the Claude API.</summary>
     /// <param name="options">The agent configuration.</param>
     public ClaudeAgent(AgentOptions options)
@@ -44,10 +48,22 @@ public sealed class ClaudeAgent
     /// <summary>Creates an agent that replays a recorded trajectory instead of calling the API.</summary>
     /// <param name="options">The agent configuration; must match the recorded run.</param>
     /// <param name="trajectory">The recording to replay.</param>
+    /// <param name="toolReplay">
+    /// Whether tools execute for real or serve their recorded results. Defaults to executing, which
+    /// is what replay has always done; <see cref="ToolReplayMode.FromRecording"/> makes the replay
+    /// hermetic, so a run whose tools touch a database replays without one.
+    /// </param>
     /// <exception cref="TrajectoryDivergenceException">Thrown during a run if it diverges from the recording.</exception>
-    public ClaudeAgent(AgentOptions options, Trajectory trajectory)
+    public ClaudeAgent(
+        AgentOptions options,
+        Trajectory trajectory,
+        ToolReplayMode toolReplay = ToolReplayMode.Execute)
         : this(options, new ReplayTransport(trajectory))
     {
+        ArgumentNullException.ThrowIfNull(trajectory);
+        _cassette = toolReplay == ToolReplayMode.FromRecording
+            ? ToolCassette.FromTrajectory(trajectory)
+            : null;
     }
 
     internal ClaudeAgent(AgentOptions options, IModelTransport transport)
@@ -804,6 +820,16 @@ public sealed class ClaudeAgent
                 toolUse.Id,
                 $"[shadow] Call to '{toolUse.Name}' was recorded as a planned effect and not executed.",
                 IsError: false), null);
+        }
+
+        // Hermetic replay: serve what the tool returned when this run was recorded. Placed after
+        // the contract, authorization and shadow checks so a replayed run reaches those decisions
+        // the same way the recorded one did, rather than skipping them.
+        if (_cassette is not null)
+        {
+            var recorded = _cassette.Replay(toolUse);
+            EmissaryDiagnostics.Tag(activity, "emissary.tool.replayed", true);
+            return (recorded, null);
         }
 
         var policy = _options.ToolFailures;
