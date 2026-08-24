@@ -45,6 +45,8 @@ foreach (var (tenant, question) in new[]
     {
         // Capped so a demo run costs a fraction of a cent, and a stuck run stops (SampleBudget).
         Model = SampleBudget.Model,
+        // Adaptive thinking is rejected by the small model, so ask for none.
+        Thinking = ThinkingMode.Disabled,
         MaxTurns = SampleBudget.MaxTurns,
         TokenBudget = SampleBudget.TokenBudget,
         SystemPrompt =

@@ -69,6 +69,17 @@ internal static class AnthropicMapper
         };
     }
 
+    /// <summary>
+    /// Builds the output config, assigning only the parts the caller actually asked for.
+    /// </summary>
+    /// <remarks>
+    /// Assigning <see langword="default"/> is not the same as leaving a property unset: the SDK
+    /// renders an assigned null as an explicit <c>"effort": null</c>, and a model that does not
+    /// support the parameter rejects the whole request — *"This model does not support the effort
+    /// parameter."* — even though no effort was requested. Structured outputs were therefore
+    /// unusable on such models. Found against the live API; no offline test can see it, and an
+    /// audit of the serialized body had dismissed the explicit null as harmless SDK rendering.
+    /// </remarks>
     private static OutputConfig? BuildOutputConfig(ModelRequest request)
     {
         if (request.Effort is null && request.OutputSchemaJson is null)
@@ -76,12 +87,22 @@ internal static class AnthropicMapper
             return null;
         }
 
+        // The properties are init-only, so each combination needs its own initializer; assigning
+        // `default` to the absent one is exactly the bug this avoids.
+        if (request.Effort is { } effort)
+        {
+            return request.OutputSchemaJson is { } both
+                ? new OutputConfig
+                {
+                    Effort = ToEffort(effort),
+                    Format = new JsonOutputFormat { Schema = ParseSchemaObject(both) },
+                }
+                : new OutputConfig { Effort = ToEffort(effort) };
+        }
+
         return new OutputConfig
         {
-            Effort = request.Effort is { } effort ? ToEffort(effort) : default,
-            Format = request.OutputSchemaJson is { } schema
-                ? new JsonOutputFormat { Schema = ParseSchemaObject(schema) }
-                : default,
+            Format = new JsonOutputFormat { Schema = ParseSchemaObject(request.OutputSchemaJson!) },
         };
     }
 

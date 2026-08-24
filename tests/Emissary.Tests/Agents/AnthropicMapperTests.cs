@@ -54,6 +54,27 @@ public sealed class AnthropicMapperTests
         await Assert.That(parameters.OutputConfig!.Format).IsNotNull();
     }
 
+    /// <summary>
+    /// The regression guard for a bug the test above could not see. `OutputConfig.Effort` reads
+    /// <see langword="null"/> whether it was never assigned or assigned <c>default</c> — but the
+    /// SDK renders an assigned null as an explicit <c>"effort": null</c>, and a model that does not
+    /// support the parameter rejects the whole request over it. Only the serialized form
+    /// distinguishes the two, so that is what this asserts (ADR 0008).
+    /// </summary>
+    [Test]
+    public async Task Output_schema_alone_keeps_effort_off_the_wire()
+    {
+        var parameters = AnthropicMapper.ToCreateParams(Request(
+            outputSchemaJson: """{"type":"object","properties":{"x":{"type":"string"}}}"""));
+
+        // Serialize the output config alone: the whole params object also carries SDK bookkeeping,
+        // which would make a substring assertion answer the wrong question.
+        string json = System.Text.Json.JsonSerializer.Serialize(parameters.OutputConfig);
+
+        await Assert.That(json).DoesNotContain("effort");
+        await Assert.That(json).Contains("json_schema");
+    }
+
     [Test]
     public async Task Output_schema_and_effort_combine()
     {
