@@ -38,10 +38,19 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Structured outputs (03-TypedOutputs)
+      # The gate asserts, rather than printing output for someone to read: a strict schema
+      # round-tripping, a tool call executing, a truncated answer reporting MaxTokens, and a
+      # cancelled stream actually stopping. Each of those corresponds to a defect that shipped in
+      # a release and that no offline test could catch (ADR 0008). It exits non-zero on failure,
+      # and prints SKIPPED and exits 0 with no key, so the step needs no condition of its own.
+      - name: Live gate
         if: steps.gate.outputs.have_key == 'true'
-        run: dotnet run --project samples/03-TypedOutputs -c Release
+        run: dotnet run --project tests/Emissary.LiveSmoke -c Release
 
-      - name: Tool loop (01-HelloTool)
+      # Kept as well, because a sample that stops working is a documentation bug: these two run
+      # the paths a reader copies first. Cheap — both are capped to a small model.
+      - name: Sample smoke (structured outputs, then the tool loop)
         if: steps.gate.outputs.have_key == 'true'
-        run: dotnet run --project samples/01-HelloTool -c Release -- "Roll 2 six-sided dice and give the total."
+        run: |
+          dotnet run --project samples/03-TypedOutputs -c Release
+          dotnet run --project samples/01-HelloTool -c Release -- "Roll 2 six-sided dice and give the total."
