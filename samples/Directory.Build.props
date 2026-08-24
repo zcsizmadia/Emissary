@@ -10,12 +10,15 @@
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
-  <ItemGroup>
+  <!-- An Aspire app host orchestrates; it never calls an agent. So it takes neither the shared cost
+       limits nor the Emissary references, and adding them would only give it a source generator to
+       run over an empty project. -->
+  <ItemGroup Condition="'$(IsAspireHost)' != 'true'">
     <!-- Shared cost limits, so no sample can be run at frontier-model prices by accident. -->
     <Compile Include="$(MSBuildThisFileDirectory)SampleBudget.cs" Link="SampleBudget.cs" />
   </ItemGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="'$(IsAspireHost)' != 'true'">
     <ProjectReference Include="$(MSBuildThisFileDirectory)..\src\Emissary\Emissary.csproj" />
     <ProjectReference Include="$(MSBuildThisFileDirectory)..\src\Emissary.SourceGenerators\Emissary.SourceGenerators.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />

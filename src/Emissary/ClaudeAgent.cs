@@ -838,6 +838,10 @@ public sealed class ClaudeAgent
             : null;
         timeoutSource?.CancelAfter(policy.Timeout!.Value);
 
+        // Only the real execution is timed, so the histogram measures the tool rather than the
+        // decisions in front of it (a blocked or replayed call returns above without touching it).
+        long toolStartTimestamp = Stopwatch.GetTimestamp();
+        string outcome = "ok";
         try
         {
             string content = await tool
@@ -854,6 +858,7 @@ public sealed class ClaudeAgent
         }
         catch (ToolArgumentException exception)
         {
+            outcome = "invalid_input";
             EmissaryDiagnostics.Fail(activity, exception.Message);
             return (new ToolResultBlock(toolUse.Id, exception.Message, IsError: true), null);
         }
@@ -863,6 +868,7 @@ public sealed class ClaudeAgent
             cancellationToken.ThrowIfCancellationRequested();
 
             bool timedOut = timeoutSource is { IsCancellationRequested: true };
+            outcome = timedOut ? "timeout" : "error";
 
             // The full exception goes to telemetry and to the caller; what the model is told is
             // deliberately thinner (see ToolFailureText).
@@ -878,6 +884,13 @@ public sealed class ClaudeAgent
             return (
                 new ToolResultBlock(toolUse.Id, ToolFailureText(toolUse.Name, exception, timedOut, policy), IsError: true),
                 new ToolFailure(toolUse.Id, toolUse.Name, exception, timedOut));
+        }
+        finally
+        {
+            EmissaryDiagnostics.ToolDuration.Record(
+                Stopwatch.GetElapsedTime(toolStartTimestamp).TotalSeconds,
+                new KeyValuePair<string, object?>("gen_ai.tool.name", toolUse.Name),
+                new KeyValuePair<string, object?>("emissary.tool.outcome", outcome));
         }
     }
 

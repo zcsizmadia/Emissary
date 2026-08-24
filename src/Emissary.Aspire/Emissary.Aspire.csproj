@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Emissary.Aspire</RootNamespace>
+    <Description>Aspire-style client integration for Emissary: configuration-bound agents, OpenTelemetry wired to the dashboard, and a health check that costs nothing.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Emissary\Emissary.csproj" />
+  </ItemGroup>
+
+</Project>

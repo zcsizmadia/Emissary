@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Sdk Name="Aspire.AppHost.Sdk" Version="13.5.2" />
+
+  <PropertyGroup>
+    <AssemblyName>AspireDashboardAppHost</AssemblyName>
+    <RootNamespace>AspireDashboardAppHost</RootNamespace>
+    <!-- Also switches off the sample-wide Emissary references and SampleBudget: an app host
+         orchestrates, it does not call an agent. -->
+    <IsAspireHost>true</IsAspireHost>
+    <UserSecretsId>emissary-aspire-sample</UserSecretsId>
+    <!-- ASPIRE010: the orchestrator and dashboard live in the Aspire CLI bundle, which this project
+         deliberately does not pull in — CI builds this sample on every commit and downloading a
+         platform-specific tooling bundle to prove it compiles is not a trade worth making. Run it
+         with `aspire run`, which brings its own. See this sample's README. -->
+    <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.AppHost" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Service\AspireDashboardService.csproj" />
+  </ItemGroup>
+
+</Project>

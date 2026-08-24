@@ -246,11 +246,12 @@ the SDK boundary [must use SDK-produced values](docs/adr/0008-sdk-boundary-testi
 | `Emissary.Mcp` | Expose tools or whole agents as an MCP stdio server |
 | `Emissary.Sqlite` | Durable suspended-run and conversation persistence |
 | `Emissary.OpenApi` | Tools generated from an OpenAPI specification, with taint-safe defaults read from its own verbs |
+| `Emissary.Aspire` | Configuration-bound agents, OpenTelemetry wired to the dashboard, and a health check that costs nothing |
 | `Emissary.Extensions.AI` | `IChatClient` adapter, for Microsoft.Extensions.AI pipelines and Microsoft Agent Framework interop |
 
 ## Samples
 
-Ten runnable samples build in CI on every commit — documentation that cannot rot. Start at
+Eleven runnable samples build in CI on every commit — documentation that cannot rot. Start at
 [`samples/01-HelloTool`](samples/01-HelloTool) and walk forward; `04-RecordReplay` and
 `06-ZeroTrustAgent` run fully offline via bundled trajectories, and `11-OpenApiTools` drives a real
 public API without one either — no API key needed for any of the three. The

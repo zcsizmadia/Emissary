@@ -1,0 +1,225 @@
+{
+  "__inputs": [],
+  "__comment": "Emissary agent dashboard. Assumes a Prometheus datasource fed by an OTLP collector, which renames instruments on the way through: dots become underscores, counters gain _total, and a histogram in seconds gains _seconds. See docs/guides/production.md#grafana.",
+  "title": "Emissary agents",
+  "uid": "emissary-agents",
+  "editable": true,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "tags": ["emissary", "ai", "genai"],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Prometheus",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {},
+        "hide": 0
+      },
+      {
+        "name": "model",
+        "label": "Model",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "query": "label_values(emissary_usage_input_tokens_total, gen_ai_request_model)",
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2,
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Spend",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Tokens per second, by tier",
+      "description": "Cached reads are billed at a fraction of fresh input, so the split matters more than the total.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "fillOpacity": 20, "stacking": { "mode": "normal" } } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "input",
+          "expr": "sum(rate(emissary_usage_input_tokens_total{gen_ai_request_model=~\"$model\"}[$__rate_interval]))"
+        },
+        {
+          "refId": "B",
+          "legendFormat": "output",
+          "expr": "sum(rate(emissary_usage_output_tokens_total{gen_ai_request_model=~\"$model\"}[$__rate_interval]))"
+        },
+        {
+          "refId": "C",
+          "legendFormat": "cache write",
+          "expr": "sum(rate(emissary_usage_cache_creation_input_tokens_total{gen_ai_request_model=~\"$model\"}[$__rate_interval]))"
+        },
+        {
+          "refId": "D",
+          "legendFormat": "cache read",
+          "expr": "sum(rate(emissary_usage_cache_read_input_tokens_total{gen_ai_request_model=~\"$model\"}[$__rate_interval]))"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Cache hit rate",
+      "description": "Cached reads as a share of all input tokens. A multi-turn agent that is not caching is paying full price for the same prefix on every turn.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 0.3 },
+              { "color": "green", "value": 0.6 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "hit rate",
+          "expr": "sum(rate(emissary_usage_cache_read_input_tokens_total[$__rate_interval])) / clamp_min(sum(rate(emissary_usage_cache_read_input_tokens_total[$__rate_interval])) + sum(rate(emissary_usage_input_tokens_total[$__rate_interval])), 1)"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Tokens per run",
+      "description": "Input plus output divided by completed runs — the number that grows quietly when a system prompt does.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 1 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "tokens/run",
+          "expr": "(sum(rate(emissary_usage_input_tokens_total[$__rate_interval])) + sum(rate(emissary_usage_output_tokens_total[$__rate_interval]))) / clamp_min(sum(rate(emissary_run_duration_seconds_count[$__rate_interval])), 0.0001)"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Latency",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Tool latency p50 / p95 / p99",
+      "description": "Where an agent's wall-clock time actually goes. A tool that has become slow is invisible in run duration alone: the model narrates around it and the answer still arrives.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "p50 {{gen_ai_tool_name}}",
+          "expr": "histogram_quantile(0.50, sum by (le, gen_ai_tool_name) (rate(emissary_tool_duration_seconds_bucket{emissary_tool_outcome=\"ok\"}[$__rate_interval])))"
+        },
+        {
+          "refId": "B",
+          "legendFormat": "p95 {{gen_ai_tool_name}}",
+          "expr": "histogram_quantile(0.95, sum by (le, gen_ai_tool_name) (rate(emissary_tool_duration_seconds_bucket{emissary_tool_outcome=\"ok\"}[$__rate_interval])))"
+        },
+        {
+          "refId": "C",
+          "legendFormat": "p99 {{gen_ai_tool_name}}",
+          "expr": "histogram_quantile(0.99, sum by (le, gen_ai_tool_name) (rate(emissary_tool_duration_seconds_bucket{emissary_tool_outcome=\"ok\"}[$__rate_interval])))"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Run duration p50 / p95",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "p50",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(emissary_run_duration_seconds_bucket{gen_ai_request_model=~\"$model\"}[$__rate_interval])))"
+        },
+        {
+          "refId": "B",
+          "legendFormat": "p95",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(emissary_run_duration_seconds_bucket{gen_ai_request_model=~\"$model\"}[$__rate_interval])))"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Tools",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Tool calls per second, by tool",
+      "description": "Which tools the model actually reaches for. A tool it never calls is a tool schema you are paying for on every request.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 19 },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "custom": { "fillOpacity": 20, "stacking": { "mode": "normal" } } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "{{gen_ai_tool_name}}",
+          "expr": "sum by (gen_ai_tool_name) (rate(emissary_tool_calls_total[$__rate_interval]))"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Tool outcomes per second",
+      "description": "A failing tool is reported to the model, which explains itself politely — so a run whose database is down can still look successful in the transcript. This panel is where it stops looking successful.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 19 },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "error" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "timeout" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "{{emissary_tool_outcome}}",
+          "expr": "sum by (emissary_tool_outcome) (rate(emissary_tool_duration_seconds_count[$__rate_interval]))"
+        }
+      ]
+    }
+  ]
+}
